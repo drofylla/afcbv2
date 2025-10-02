@@ -45,14 +45,15 @@ func InitDB() (*DB, error) {
 	}
 
 	// set admin user if not exists
-	_, err := db.Exec(`INSERT OR IGNORE INTO users (username, password) VALUES (?, ?`), "af", "afcb")
+	_, err = db.Exec(`INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)`,
+		"af", "afcb")
 	if err != nil {
 		return nil, err
 	}
 	return &DB{db}, nil
 }
 
-//USERS HANDLERS
+// USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
 	err := db.QueryRow("SELECT username, passowrd, contact_id FROM users WHERE username = ?",
@@ -69,11 +70,73 @@ func (db *DB) CreateUser(user *User) error {
 	return err
 }
 
-//CONTACTS HANDLERS
+// CONTACTS HANDLERS
 func (db *DB) CreateContact(contact *Contact) error {
 	_, err := db.Exec(`INSERT INTO contacts
 		(id, contact_type, first_name, last_name, email, phone, password)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		contact.ID, contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password)
 	return err
+}
+
+func (db *DB) GetContact(id string) (*Contact, error) {
+	var contact Contact
+	err := db.QueryRow(`SELECT id, contact_type, first_name, last_name, email, phone, password FROM contacts WHERE id = ?`, id).Scan(
+		&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &contact.Password)
+	if err != nil {
+		return nil, err
+	}
+	return &contact, nil
+}
+
+func (db *DB) UpdateContact(contact *Contact) error {
+	_, err := db.Exec(`UPDATE contacts SET contact_type = ?, first_name = ?, last_name = ?, email = ?, phone = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password, contact.ID)
+	return err
+}
+
+func (db *DB) DeleteContact(id string) error {
+	_, err := db.Exec("DELETE FROM contacts WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) GetAllContacts() ([]Contact, error) {
+	rows, err := db.Query("SELECT id, contact_type, first_name, last_name, email, phone FROM contacts")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contacts []Contact
+	for rows.Next() {
+		var contact Contact
+		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone)
+		if err != nil {
+			return nil, err
+		}
+		contacts = append(contacts, contact)
+	}
+	return contacts, nil
+}
+
+func (db *DB) SearchContacts(keyword string) ([]Contact, error) {
+	query := `SELECT id, contact_type, first_name, last_name, email, phone FROM contacts WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? or phone LIKE ?`
+
+	likeKeyword := "%" + keyword + "%"
+	rows, err := db.Query(query, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var contacts []Contact
+	for rows.Next() {
+		var contact Contact
+		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone)
+		if err != nil {
+			return nil, err
+		}
+		contacts = append(contacts, contact)
+	}
+	return contacts, nil
 }
