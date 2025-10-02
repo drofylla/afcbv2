@@ -58,7 +58,7 @@ func InitDB() (*DB, error) {
 // USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
-	err := db.QueryRow("SELECT username, passowrd, contact_id FROM users WHERE username = ?",
+	err := db.QueryRow("SELECT username, password, contact_id FROM users WHERE username = ?",
 		username).Scan(&user.Username, &user.Password, &user.ContactID)
 	if err != nil {
 		return nil, err

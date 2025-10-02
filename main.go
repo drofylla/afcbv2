@@ -533,14 +533,21 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
+	fmt.Printf("Login attempt: username=%s, password=%s\n", username, password)
+
 	user, err := db.GetUser(username)
 	if err != nil {
-		w.Write([]byte(`<div id="login-message" class="mt-4 text-center text-red-500">Invalid username or password.</div>`))
+		fmt.Printf("Login failed - user not found or error: %v\n", err)
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`<div id="login-message" class="mt-4 text-center text-red-500">Invalid username or password.</div>`))
 		return
 	}
 
+	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s\n", user.Username, password, user.Password)
+
 	if user.Password == password {
+		fmt.Printf("Login successful for user: %s\n", username)
 		http.SetCookie(w, &http.Cookie{
 			Name:  "session",
 			Value: "authenticated",
@@ -552,8 +559,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Write([]byte(`<div id="login-message" class="mt-4 text-center text-red-500">Invalid username or password.</div>`))
+	fmt.Printf("Login failed - password mismatch for user: %s\n", username)
+	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusUnauthorized)
+	w.Write([]byte(`<div id="login-message" class="mt-4 text-center text-red-500">Invalid username or password.</div>`))
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -595,6 +604,23 @@ func main() {
 	fmt.Println("Database initialized successfully")
 
 	router := mux.NewRouter()
+
+	// Debug: List all users
+	rows, err := db.Query("SELECT username, password FROM users")
+	if err != nil {
+		fmt.Printf("Error querying users: %v\n", err)
+	} else {
+		defer rows.Close()
+		fmt.Println("Current users in database:")
+		for rows.Next() {
+			var username, password string
+			if err := rows.Scan(&username, &password); err != nil {
+				fmt.Printf("Error scanning user row: %v\n", err)
+				continue
+			}
+			fmt.Printf("  User: %s, Password: %s\n", username, password)
+		}
+	}
 
 	// Serve login page
 	router.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
