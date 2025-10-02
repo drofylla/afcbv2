@@ -70,6 +70,16 @@ func (db *DB) CreateUser(user *User) error {
 	return err
 }
 
+func (db *DB) UpdateUserPassword(username, password string) error {
+	_, err := db.Exec("UPDATE users SET password = ? WHERE username = ?", password, username)
+	return err
+}
+
+func (db *DB) DeleteUser(username string) error {
+	_, err := db.Exec("DELETE FROM users WHERE username = ?", username)
+	return err
+}
+
 // CONTACTS HANDLERS
 func (db *DB) CreateContact(contact *Contact) error {
 	_, err := db.Exec(`INSERT INTO contacts
