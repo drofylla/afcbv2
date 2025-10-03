@@ -591,6 +591,18 @@ func searchContacts(w http.ResponseWriter, r *http.Request) {
 // PW CHANGE HANDLER
 func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+		cookie, err := r.Cookie("password_change_user")
+		if err != nil {
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(`<div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+                    <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Access Denied</h2>
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                        <p class="text-red-800 text-sm">Please login first to change your password.</p>
+                    </div>
+                    <a href="/login" class="block text-center bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">Go to Login</a>
+                </div>`))
+			return
+		}
 		w.Header().Set("Content-Type", "text/html")
 		w.Write([]byte(changePasswordHTML))
 		return
@@ -619,6 +631,11 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if len(newPassword) < 6 {
+			w.Write([]byte(`<div class="text-red-500">Password must be at least 6 characters long.</div>`))
+			return
+		}
+
 		//Update pw in db
 		if err := db.UpdateUserPassword(username, newPassword); err != nil {
 			w.Write([]byte(`<div class="text-red-500">Failed to update password. Please try again</div>`))
@@ -643,6 +660,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		fmt.Printf("Password successfullt changed for user: %s\n", username)
 		w.Write([]byte(`<div class="text-green-500">Password updated succesfully! Redirecting...</div>
 			<script>setTimeout(() => window.location.href = "/", 2000</script>`))
 		return
@@ -683,7 +701,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	fmt.Printf("Login attempt: username=%s, password=%s\n", username, password)
+	fmt.Printf("Login attempt: username=%s\n", username)
 
 	user, err := db.GetUser(username)
 	if err != nil {
@@ -694,7 +712,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s, needs password change:%t\n", user.Username, password, user.Password, user.NeedPasswordChange)
+	fmt.Printf("Found user: %s, needs password change: %t\n", user.Username, user.NeedPasswordChange)
 
 	if user.Password == password {
 		fmt.Printf("Login successful for user: %s\n", username)
@@ -709,15 +727,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("User %s needs passowrd change\n", username)
 			//Cookie indicator password change needed
 			http.SetCookie(w, &http.Cookie{
-				Name:  "needs_password_change",
-				Value: username,
-				Path:  "/",
+				Name:   "password_change_user",
+				Value:  username,
+				Path:   "/",
+				MaxAge: 300,
 			})
 			w.Header().Set("HX-Redirect", "/change-password")
-		} else {
-			w.Header().Set("HX-Redirect", "/")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Login successful - password change required"))
+			return
 		}
 
+		w.Header().Set("HX-Redirect", "/")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Login successful"))
 		return
