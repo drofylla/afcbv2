@@ -354,9 +354,10 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 
 	// Create user account for this contact
 	user := &User{
-		Username:  email,
-		Password:  password,
-		ContactID: &newID,
+		Username:           email,
+		Password:           password,
+		ContactID:          &newID,
+		NeedPasswordChange: true,
 	}
 
 	// Check existing user
