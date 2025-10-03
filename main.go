@@ -191,6 +191,69 @@ var editModalHTML = `
 </div>
 `
 
+var changePasswordHTML = `
+<!doctype HTML>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Change Password - AFCB</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    </head>
+    <body class="bg-gray-200 flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">
+                Change Your Password
+            </h2>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p class="text-yellow-800 text-sm">For security reasons, please change your default password.</p>
+            </div>
+            <form
+                hx-post="/change-password"
+                hx-trigger="submit"
+                hx-target="#password-message"
+                hx-swap="innerHTML"
+            >
+                <div class="mb-4">
+                	<label class="block text-gray-700 font-bold mb-2" for="newPassword">New Password</label>
+                    <input
+                         class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        id="newPassword"
+                        name="newPassword"
+                        type="password"
+                        placeholder="Enter new password"
+                        required
+                        minlength="6"
+                    />
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-bold mb-2" for="confirmPassword">Confirm New Password</label>
+                    <input
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        placeholder="Confirm new password"
+                        required
+                        minlength="6"
+                        />
+                </div>
+                <div class="flex items-center justify-between">
+                     <button
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+                        type="submit"
+                    >
+                        Change Password
+                    </button>
+                </div>
+            </form>
+            <div id="password-message" class="mt-4 text-center"></div>
+        </div>
+    </body>
+</html>
+`
+
 func renderCard(w http.ResponseWriter, c Contact) {
 	w.Header().Set("Content-Type", "text/html")
 	conCard.Execute(w, c)
@@ -570,7 +633,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s\n", user.Username, password, user.Password)
+	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s\n", user.Username, password, user.NeedPasswordChange)
 
 	if user.Password == password {
 		fmt.Printf("Login successful for user: %s\n", username)
@@ -579,7 +642,21 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Value: "authenticated",
 			Path:  "/",
 		})
-		w.Header().Set("HX-Redirect", "/")
+
+		//Check if need password change
+		if user.NeedPasswordChange {
+			fmt.Printf("User %s needs passowrd change\n", username)
+			//Cookie indicator password change needed
+			http.SetCookie(w, &http.Cookie{
+				Name:  "needs_password_change",
+				Value: username,
+				Path:  "/",
+			})
+			w.Header().Set("HX-Redirect", "/change-password")
+		} else {
+			w.Header().Set("HX-Redirect", "/")
+		}
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Login successful"))
 		return
