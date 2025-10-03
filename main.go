@@ -795,6 +795,11 @@ func main() {
 
 	fmt.Println("Database initialized successfully")
 
+	// Debug: users table
+	if err := db.DebugUserTable(); err != nil {
+		fmt.Printf("Debug error: %v\n", err)
+	}
+
 	router := mux.NewRouter()
 
 	// Debug: List all users
