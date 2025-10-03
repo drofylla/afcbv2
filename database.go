@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -17,14 +19,19 @@ func InitDB() (*DB, error) {
 		return nil, err
 	}
 
+	//Test connect
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("Failed to connect to database: %v", err)
+	}
+
 	//create tables
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY,
 			username TEXT UNIQUE NOT NULL,
 			password TEXT NOT NULL,
 			contact_id TEXT,
-			needs_password_change BOOLEAN DEFAULT 1, -- New column, default to true
+			needs_password_change BOOLEAN DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
@@ -47,12 +54,29 @@ func InitDB() (*DB, error) {
 		}
 	}
 
-	// set admin user if not exists
-	_, err = db.Exec(`INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)`,
-		"af", "afcb")
+	// ensure the needs_password_change column exists
+	_, err = db.Exec(`ALTER TABLE users ADD COLUMN needs_password_change BOOLEAN DEFAULT 1`)
 	if err != nil {
-		return nil, err
+		// Ignore "duplicate column" errors
+		if !strings.Contains(err.Error(), "duplicate column") {
+			fmt.Printf("Note: Could not alter users table: %v\n", err)
+		}
 	}
+
+	// Insert default admin user if not exists - mark as NOT needing password change
+	result, err := db.Exec(`INSERT OR IGNORE INTO users (username, password, needs_password_change) VALUES (?, ?, ?)`,
+		"af", "afcb", 0) // Admin doesn't need password change
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default admin user: %v", err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("Default admin user created: af / afcb")
+	} else {
+		log.Printf("Default admin user already exists")
+	}
+
 	return &DB{db}, nil
 }
 
