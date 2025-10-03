@@ -591,7 +591,7 @@ func searchContacts(w http.ResponseWriter, r *http.Request) {
 // PW CHANGE HANDLER
 func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		cookie, err := r.Cookie("password_change_user")
+		_, err := r.Cookie("password_change_user")
 		if err != nil {
 			w.Header().Set("Content-Type", "text/html")
 			w.Write([]byte(`<div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
@@ -768,9 +768,16 @@ func authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		cookie, err := r.Cookie("session")
-		if err != nil || cookie.Value != "authenticated" {
+		//check if user authenticated
+		sessionCookie, err := r.Cookie("session")
+		if err != nil || sessionCookie.Value != "authenticated" {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+
+		//check if user need password change
+		if _, err := r.Cookie("password_change_user"); err == nil {
+			http.Redirect(w, r, "/change-password", http.StatusSeeOther)
 			return
 		}
 		next.ServeHTTP(w, r)
