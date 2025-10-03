@@ -83,7 +83,8 @@ func InitDB() (*DB, error) {
 // USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
-	var needsChange int
+	var needsChange interface{} //to handle different types
+
 	err := db.QueryRow("SELECT username, password, contact_id, needs_password_change FROM users WHERE username = ?",
 		username).Scan(&user.Username, &user.Password, &user.ContactID, &needsChange)
 	if err != nil {
@@ -92,7 +93,20 @@ func (db *DB) GetUser(username string) (*User, error) {
 		}
 		return nil, fmt.Errorf("database error: %v", err)
 	}
-	user.NeedPasswordChange = (needsChange == 1)
+
+	//handle possible types of boolean
+	switch v := needsChange.(type) {
+	case int64:
+		user.NeedPasswordChange = (v == 1)
+	case bool:
+		user.NeedPasswordChange = v
+	case string:
+		user.NeedPasswordChange = (v == "1" || v == "true")
+	case nil:
+		user.NeedPasswordChange = true // Default to true if NULL
+	default:
+		user.NeedPasswordChange = true // Default to true for unknown types
+	}
 	return &user, nil
 }
 
@@ -194,4 +208,47 @@ func (db *DB) SearchContacts(keyword string) ([]Contact, error) {
 		contacts = append(contacts, contact)
 	}
 	return contacts, nil
+}
+
+// Add this function to debug the database schema
+func (db *DB) DebugUserTable() error {
+	fmt.Println("=== Debugging users table ===")
+
+	// Check table structure
+	rows, err := db.Query("PRAGMA table_info(users)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	fmt.Println("Users table columns:")
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt_value interface{}
+		rows.Scan(&cid, &name, &ctype, &notnull, &dflt_value, &pk)
+		fmt.Printf("  Column: %s, Type: %s, PK: %d\n", name, ctype, pk)
+	}
+
+	// Check actual data
+	dataRows, err := db.Query("SELECT username, password, contact_id, needs_password_change, typeof(needs_password_change) FROM users")
+	if err != nil {
+		return err
+	}
+	defer dataRows.Close()
+
+	fmt.Println("Users data:")
+	for dataRows.Next() {
+		var username, password string
+		var contactID sql.NullString
+		var needsChange interface{}
+		var needsChangeType string
+
+		dataRows.Scan(&username, &password, &contactID, &needsChange, &needsChangeType)
+		fmt.Printf("  User: %s, Password: %s, NeedsChange: %v (%s)\n", username, password, needsChange, needsChangeType)
+	}
+
+	fmt.Println("=== End debugging ===")
+	return nil
 }
