@@ -588,6 +588,67 @@ func searchContacts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PW CHANGE HANDLER
+func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(changePasswordHTML))
+		return
+	}
+
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		newPassword := r.FormValue("newPassword")
+		confirmPassword := r.FormValue("confirmPassword")
+
+		//Get username from cookie
+		cookie, err := r.Cookie("needs_password_change")
+		if err != nil {
+			w.Write([]byte(`<div class="text-red-500">Session expired. Please login again.</div>`))
+			return
+		}
+		username := cookie.Value
+
+		//Valudate password
+		if newPassword != confirmPassword {
+			w.Write([]byte(`div class="text-red-500">Password must be at least 6 characters long.</div>`))
+			return
+		}
+
+		//Update pw in db
+		if err := db.UpdateUserPassword(username, newPassword); err != nil {
+			w.Write([]byte(`<div class="text-red-500">Failed to update password. Please try again</div>`))
+			return
+		}
+
+		//clear cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:   "needs_password_change",
+			Value:  "",
+			Path:   "/",
+			MaxAge: -1,
+		})
+
+		//Update contact pw if it's a contact user
+		user, err := db.GetUser(username)
+		if err == nil && user.ContactID != nil {
+			contact, err := db.GetContact(*user.ContactID)
+			if err == nil {
+				contact.Password = newPassword
+				db.UpdateContact(contact)
+			}
+		}
+
+		w.Write([]byte(`<div class="text-green-500">Password updated succesfully! Redirecting...</div>
+			<script>setTimeout(() => window.location.href = "/", 2000</script>`))
+		return
+	}
+}
+
 // MODAL HANDLERS
 func addModal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
@@ -633,7 +694,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s\n", user.Username, password, user.NeedPasswordChange)
+	fmt.Printf("Found user: %s, comparing passwords: input=%s, stored=%s, needs password change:%t\n", user.Username, password, user.Password, user.NeedPasswordChange)
 
 	if user.Password == password {
 		fmt.Printf("Login successful for user: %s\n", username)
@@ -681,7 +742,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Allow login page without authentication
-		if r.URL.Path == "/login" {
+		if r.URL.Path == "/login" || r.URL.Path == "/change-password" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -734,6 +795,7 @@ func main() {
 		}
 	})
 
+	router.HandleFunc("/change-password", changePasswordHandler).Methods("GET", "POST")
 	router.HandleFunc("/logout", logoutHandler).Methods("GET")
 
 	// Create sub-router for all authenticated routes
