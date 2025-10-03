@@ -107,7 +107,7 @@ func (db *DB) CreateUser(user *User) error {
 }
 
 func (db *DB) UpdateUserPassword(username, newPassword string) error {
-	_, err := db.Exec("UPDATE users SET password = ?, needs_passowrd_change = 0 WHERE username = ?", newPassword, username)
+	_, err := db.Exec("UPDATE users SET password = ?, needs_password_change = 0 WHERE username = ?", newPassword, username)
 	return err
 }
 
