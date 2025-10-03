@@ -618,7 +618,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		confirmPassword := r.FormValue("confirmPassword")
 
 		//Get username from cookie
-		cookie, err := r.Cookie("needs_password_change")
+		cookie, err := r.Cookie("password_change_user")
 		if err != nil {
 			w.Write([]byte(`<div class="text-red-500">Session expired. Please login again.</div>`))
 			return
@@ -627,7 +627,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 		//Valudate password
 		if newPassword != confirmPassword {
-			w.Write([]byte(`div class="text-red-500">Password must be at least 6 characters long.</div>`))
+			w.Write([]byte(`<div class="text-red-500">Password must be at least 6 characters long.</div>`))
 			return
 		}
 
@@ -644,7 +644,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 		//clear cookie
 		http.SetCookie(w, &http.Cookie{
-			Name:   "needs_password_change",
+			Name:   "password_change_user",
 			Value:  "",
 			Path:   "/",
 			MaxAge: -1,
@@ -662,7 +662,7 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Printf("Password successfullt changed for user: %s\n", username)
 		w.Write([]byte(`<div class="text-green-500">Password updated succesfully! Redirecting...</div>
-			<script>setTimeout(() => window.location.href = "/", 2000</script>`))
+			<script>setTimeout(() => window.location.href = "/", 2000)</script>`))
 		return
 	}
 }
