@@ -85,7 +85,7 @@ func (db *DB) GetUser(username string) (*User, error) {
 	var user User
 	var needsChange int
 	err := db.QueryRow("SELECT username, password, contact_id, needs_password_change FROM users WHERE username = ?",
-		username).Scan(&user.Username, &user.Password, &user.ContactID, &user.NeedPasswordChange)
+		username).Scan(&user.Username, &user.Password, &user.ContactID, &needsChange)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found: %s", username)
