@@ -1,7 +1,8 @@
 package main
 
 type User struct {
-	Username  string
-	Password  string
-	ContactID *string
+	Username           string
+	Password           string
+	ContactID          *string
+	NeedPasswordChange bool
 }
