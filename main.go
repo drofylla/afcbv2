@@ -317,10 +317,24 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate password if not provided
+	//Generate default password
 	if password == "" {
-		tempPass, _ := genID()
-		password = tempPass[:8] // Use first 8 characters of generated ID
+		// Get last 3 characters of phone
+		phoneLast3 := ""
+		if len(phone) >= 3 {
+			phoneLast3 = phone[len(phone)-3:]
+		} else {
+			phoneLast3 = phone // Use entire phone if less than 3 characters
+		}
+
+		// Get first letter of first name (uppercase)
+		firstNameFirstLetter := ""
+		if len(firstName) > 0 {
+			firstNameFirstLetter = string(firstName[0])
+		}
+
+		password = phoneLast3 + firstNameFirstLetter
+		fmt.Printf("Auto-generated password: %s (from phone: %s, first name: %s)\n", password, phone, firstName)
 	}
 
 	newContact := &Contact{
@@ -345,11 +359,22 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 		ContactID: &newID,
 	}
 
-	if err := db.CreateUser(user); err != nil {
-		fmt.Printf("Warning: Failed to create user account for contact: %v\n", err)
+	// Check existing user
+	_, err = db.GetUser(email)
+	if err != nil {
+		// User doesn't exist, create new one
+		if err := db.CreateUser(user); err != nil {
+			fmt.Printf("Warning: Failed to create user account for contact: %v\n", err)
+		} else {
+			fmt.Printf("User account created for contact: %s with password: %s\n", email, password)
+		}
+	} else {
+		// User already exists (unexpected for new contact)
+		fmt.Printf("Warning: User account already exists for email: %s\n", email)
 	}
 
-	fmt.Printf("New contact created with ID: %s. Name: %s %s\n", newContact.ID, newContact.FirstName, newContact.LastName)
+	fmt.Printf("New contact created with ID: %s. Name: %s %s, Password: %s\n",
+		newContact.ID, newContact.FirstName, newContact.LastName, newContact.Password)
 	renderCard(w, *newContact)
 }
 
