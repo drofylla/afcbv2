@@ -24,6 +24,7 @@ func InitDB() (*DB, error) {
 			username TEXT UNIQUE NOT NULL,
 			password TEXT NOT NULL,
 			contact_id TEXT,
+			needs_password_change BOOLEAN DEFAULT 1, -- New column, default to true
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
@@ -58,23 +59,41 @@ func InitDB() (*DB, error) {
 // USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
-	err := db.QueryRow("SELECT username, password, contact_id FROM users WHERE username = ?",
-		username).Scan(&user.Username, &user.Password, &user.ContactID)
+	var needsChange int
+	err := db.QueryRow("SELECT username, password, contact_id, needs_password_change FROM users WHERE username = ?",
+		username).Scan(&user.Username, &user.Password, &user.ContactID, &user.NeedPasswordChange)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found: %s", username)
+		}
+		return nil, fmt.Errorf("database error: %v", err)
 	}
+	user.NeedPasswordChange = (needsChange == 1)
 	return &user, nil
 }
 
 func (db *DB) CreateUser(user *User) error {
-	_, err := db.Exec("INSERT INTO users (username, password, contact_id) VALUES (?, ?, ?)",
-		user.Username, user.Password, user.ContactID)
+	needsChange := 0
+	if user.NeedPasswordChange {
+		needsChange = 1
+	}
+	_, err := db.Exec("INSERT INTO users (username, password, contact_id, needs_password_change) VALUES (?, ?, ?, ?)",
+		user.Username, user.Password, user.ContactID, needsChange)
 	return err
 }
 
-func (db *DB) UpdateUserPassword(username, password string) error {
-	_, err := db.Exec("UPDATE users SET password = ? WHERE username = ?", password, username)
+func (db *DB) UpdateUserPassword(username, newPassword string) error {
+	_, err := db.Exec("UPDATE users SET password = ?, needs_passowrd_change = 0 WHERE username = ?", newPassword, username)
 	return err
+}
+
+func (db *DB) UserNeedsPasswordChange(username string) (bool, error) {
+	var needsChange int
+	err := db.QueryRow("SELECT needs_password_change FROM users WHERE username = ?", username).Scan(&needsChange)
+	if err != nil {
+		return false, err
+	}
+	return needsChange == 1, nil
 }
 
 func (db *DB) DeleteUser(username string) error {
