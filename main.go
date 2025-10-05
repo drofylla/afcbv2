@@ -209,40 +209,49 @@ var editModalHTML = `
         </div>
         <h3 class="text-xl font-bold mb-4">Edit Contact</h3>
         <form id="contactForm"
-              hx-put="/contacts/{{.ID}}"
-              hx-target="#contact-{{.ID}}"
+              hx-put="/contacts/{{.Contact.ID}}"
+              hx-target="#contact-{{.Contact.ID}}"
               hx-swap="outerHTML"
               hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#contact-modal'))">
-            <input type="hidden" name="id" value="{{.ID}}">
+            <input type="hidden" name="id" value="{{.Contact.ID}}">
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="contactType">Contact Type</label>
                 <select id="contactType" name="ContactType" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                    <option value="Personal" {{if eq .ContactType "Personal"}}selected{{end}}>Personal</option>
-                    <option value="Work" {{if eq .ContactType "Work"}}selected{{end}}>Work</option>
-                    <option value="Family" {{if eq .ContactType "Family"}}selected{{end}}>Family</option>
+                    <option value="Personal" {{if eq .Contact.ContactType "Personal"}}selected{{end}}>Personal</option>
+                    <option value="Work" {{if eq .Contact.ContactType "Work"}}selected{{end}}>Work</option>
+                    <option value="Family" {{if eq .Contact.ContactType "Family"}}selected{{end}}>Family</option>
                 </select>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="firstName">First Name</label>
-                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="firstName" name="FirstName" type="text" value="{{.FirstName}}" required>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="firstName" name="FirstName" type="text" value="{{.Contact.FirstName}}" required>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="lastName">Last Name</label>
-                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="lastName" name="LastName" type="text" value="{{.LastName}}" required>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="lastName" name="LastName" type="text" value="{{.Contact.LastName}}" required>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="email">Email</label>
-                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="email" name="Email" type="email" value="{{.Email}}" required>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="email" name="Email" type="email" value="{{.Contact.Email}}" required>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="phone">Phone</label>
-                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="phone" name="Phone" type="tel" value="{{.Phone}}" required>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="phone" name="Phone" type="tel" value="{{.Contact.Phone}}" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="company">Company</label>
+                <select id="company" name="CompanyID" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    <option value="">No Company</option>
+                    {{range .Companies}}
+                    <option value="{{.ID}}" {{if $.Contact.CompanyID}}{{if eq .ID $.Contact.CompanyID}}selected{{end}}{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
                 <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                        id="password" name="Password" type="password" placeholder="Leave empty to keep current"
-                       value="{{if .Password}}{{.Password}}{{end}}">
+                       value="{{if .Contact.Password}}{{.Contact.Password}}{{end}}">
                 <p class="text-xs text-gray-500 mt-1">Leave empty to keep current password</p>
             </div>
             <div class="flex items-center justify-end">
@@ -838,9 +847,23 @@ func editModal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	companies, err := db.GetCompanies()
+	if err != nil {
+		http.Error(w, "Failed to fetch companies: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		Contact   *Contact
+		Companies []Company
+	}{
+		Contact:   contact,
+		Companies: companies,
+	}
+
 	w.Header().Set("Content-Type", "text/html")
 	tmpl := template.Must(template.New("edit-modal").Parse(editModalHTML))
-	tmpl.Execute(w, contact)
+	tmpl.Execute(w, data)
 }
 
 func closeForm(w http.ResponseWriter, r *http.Request) {
