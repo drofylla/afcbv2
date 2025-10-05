@@ -26,6 +26,17 @@ func InitDB() (*DB, error) {
 
 	//create tables
 	queries := []string{
+		`CREATE TABLE IF NOT EXISTS companies (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			bank_name TEXT,
+			account_number TEXT,
+			account_document_path TEXT,
+			registration_number TEXT,
+			registration_document_path TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY,
 			username TEXT UNIQUE NOT NULL,

@@ -16,6 +16,7 @@ type Contact struct {
 	Email       string
 	Phone       string
 	Password    string
+	CompanyID   *string
 }
 
 // generate unique 6-character ID using custom alphabet & numbers
