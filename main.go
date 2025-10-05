@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -19,40 +20,40 @@ const dataFile = "AFcb.db" // Now using SQLite database
 
 var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
 	"getCompanyName": func(companyID *string) string {
-		if companyID == nil || *companyID == "" {
+		if companyID == nil {
 			return ""
 		}
 		company, err := db.GetCompany(*companyID)
 		if err != nil {
-			fmt.Printf("Error getting company %s: %v\n", *companyID, err)
 			return ""
 		}
 		return company.Name
 	},
 }).Parse(`
-	<div class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all duration-300" id="contact-{{.ID}}">
+    <div class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all duration-300" id="contact-{{.Contact.ID}}">
     <div class="details">
-        <span class="id text-xs font-semibold text-gray-500">ID: {{.ID}}</span>
-        <strong class="name block text-xl font-bold text-gray-800 mt-1">{{.FirstName}} {{.LastName}}</strong>
-        {{if .CompanyID}}
+        <span class="id text-xs font-semibold text-gray-500">ID: {{.Contact.ID}}</span>
+        <strong class="name block text-xl font-bold text-gray-800 mt-1">{{.Contact.FirstName}} {{.Contact.LastName}}</strong>
+        {{if .Contact.CompanyID}}
         <div class="company mt-1">
-            <span class="text-sm text-gray-600">{{getCompanyName .CompanyID}}</span>
+            <span class="text-sm text-gray-600">{{getCompanyName .Contact.CompanyID}}</span>
         </div>
         {{end}}
         <span class="type inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium
-            {{if eq .ContactType "Personal"}}bg-blue-100 text-blue-800
-            {{else if eq .ContactType "Work"}}bg-green-100 text-green-800
-            {{else if eq .ContactType "Family"}}bg-purple-100 text-purple-800
+            {{if .IsCurrentUser}}bg-yellow-100 text-yellow-800
+            {{else if eq .Contact.ContactType "Personal"}}bg-blue-100 text-blue-800
+            {{else if eq .Contact.ContactType "Work"}}bg-green-100 text-green-800
+            {{else if eq .Contact.ContactType "Family"}}bg-purple-100 text-purple-800
             {{else}}bg-gray-100 text-gray-800{{end}}">
-            {{.ContactType}}
+            {{if .IsCurrentUser}}Myself{{else}}{{.Contact.ContactType}}{{end}}
         </span>
         <div class="details mt-3 text-gray-600">
             <div class="flex items-center mb-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                <span id="email-{{.ID}}">{{.Email}}</span>
-                <button onclick="copyEmail('email-{{.ID}}')" class="ml-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Copy Email">
+                <span id="email-{{.Contact.ID}}">{{.Contact.Email}}</span>
+                <button onclick="copyEmail('email-{{.Contact.ID}}')" class="ml-2 p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" title="Copy Email">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2.5a1.5 1.5 0 011.5 1.5v4.5m-14-6.5h3v-3h-3v3z" />
                     </svg>
@@ -62,13 +63,13 @@ var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
-                <span>{{.Phone}}</span>
-                <a href="https://wa.me/{{.Phone}}" target="_blank" class="ml-2 p-1 rounded-full text-green-500 hover:bg-green-100 transition-colors" title="WhatsApp">
+                <span>{{.Contact.Phone}}</span>
+                <a href="https://wa.me/{{.Contact.Phone}}" target="_blank" class="ml-2 p-1 rounded-full text-green-500 hover:bg-green-100 transition-colors" title="WhatsApp">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12.04 2.87c-5.42 0-9.82 4.4-9.82 9.82 0 1.94.57 3.8.14 5.39l-1.39 5.09 5.25-1.36c1.5.25 3.09.4 4.56.4 5.42 0 9.82-4.4 9.82-9.82-.01-5.42-4.4-9.81-9.8-9.81zm-.04 17.1c-1.36 0-2.7-.22-3.9-.66l-2.61.68.68-2.55c-.5-1.16-.76-2.43-.76-3.75 0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8zm4.53-5.59c-.25-.13-.49-.2-.72-.2-.23 0-.46.07-.69.21-.23.14-.52.28-.84.38-.32.1-.64.16-.96.06-.32-.1-.6-.24-.87-.45-.27-.2-.5-.45-.7-.7-.19-.24-.34-.49-.49-.77s-.27-.58-.33-.89c-.06-.31-.05-.59-.01-.84.04-.26.13-.5.26-.72.13-.22.25-.4.36-.57.11-.17.18-.32.22-.44.04-.12.02-.27-.04-.43-.06-.16-.18-.32-.34-.48-.16-.16-.36-.31-.6-.44-.24-.13-.49-.2-.73-.2-.24 0-.48.05-.72.15-.24.1-.46.25-.66.44-.2.19-.38.41-.54.67-.16.26-.28.53-.4.81s-.2 0-.25-.06c-.05-.06-.2-.25-.37-.47s-.35-.4-.5-.54c-.16-.14-.28-.2-.37-.2s-.22 0-.36-.05c-.14-.05-.3-.08-.5-.09-.19-.01-.39-.01-.58 0-.19 0-.4.04-.61.09-.2.05-.4.14-.57.26-.17.12-.3.27-.4.45-.1.18-.15.39-.15.63s.06.48.19.74c.12.26.3.52.54.78.24.26.54.55.89.87.35.31.75.63 1.18.96 1.05.78 1.95 1.48 2.5 1.77.55.29 1.01.44 1.39.44.38 0 .82-.13 1.34-.38.52-.25.96-.54 1.33-.88.37-.34.6-.78.71-1.32.11-.54.06-1.04-.08-1.52z"/>
                     </svg>
                 </a>
-                <a href="signal://send?text=&phone={{.Phone}}" target="_blank" class="ml-2 p-1 rounded-full text-gray-800 hover:bg-gray-200 transition-colors" title="Signal">
+                <a href="signal://send?text=&phone={{.Contact.Phone}}" target="_blank" class="ml-2 p-1 rounded-full text-gray-800 hover:bg-gray-200 transition-colors" title="Signal">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.8 14.8c-.37.37-.87.5-1.37.5-.5 0-1-.13-1.37-.5-.75-.75-.75-1.99 0-2.74L12 11.39l-1.44-1.44c-.75-.75-.75-1.99 0-2.74s1.99-.75 2.74 0L12 8.61l1.44-1.44c.75-.75 1.99-.75 2.74 0s.75 1.99 0 2.74L12.8 12.8l1.44 1.44c.75.75.75 1.99 0 2.74zm0 0"/>
                     </svg>
@@ -78,7 +79,7 @@ var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
     </div>
     <div class="actions flex justify-end mt-4 space-x-2">
         <button class="edit-btn p-2 rounded-lg border border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-colors"
-            hx-get="/modal/edit/{{.ID}}"
+            hx-get="/modal/edit/{{.Contact.ID}}"
             hx-target="#modal-container"
             hx-swap="innerHTML"
             title="Edit">
@@ -88,8 +89,8 @@ var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
             </svg>
         </button>
         <button class="delete-btn p-2 rounded-lg border border-gray-300 hover:border-red-500 hover:bg-red-50 transition-colors"
-                hx-delete="/contacts/{{.ID}}"
-                hx-target="#contact-{{.ID}}"
+                hx-delete="/contacts/{{.Contact.ID}}"
+                hx-target="#contact-{{.Contact.ID}}"
                 hx-swap="outerHTML"
                 hx-confirm="Are you sure you want to delete this contact?"
                 title="Delete">
@@ -108,14 +109,14 @@ var addCompanyModalHTML = `
 <div id="company-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <div class="flex justify-end">
-            <button hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+            <button hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
         </div>
         <h3 class="text-xl font-bold mb-4">Add New Company</h3>
         <form id="companyForm" enctype="multipart/form-data"
               hx-post="/companies"
-              hx-target="#company-list"
-              hx-swap="afterbegin"
-              hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#company-modal'))">
+              hx-target="#companies-table-body"
+              hx-swap="beforeend"
+              hx-on::after-request="if(event.detail.successful) { document.getElementById('company-modal').remove(); }">
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="companyName">Company Name</label>
                 <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
@@ -169,7 +170,7 @@ var addModalHTML = `
               hx-post="/contacts"
               hx-target="#contact-list"
               hx-swap="afterbegin"
-              hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#contact-modal'))">
+              hx-on::after-request="if(event.detail.successful) document.getElementById('contact-modal').remove()">
             <input type="hidden" id="contact-id" name="id">
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="contactType">Contact Type</label>
@@ -189,7 +190,8 @@ var addModalHTML = `
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="email">Email</label>
-                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="email" name="Email" type="email" placeholder="Email" required>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="email" name="Email" type="email" placeholder="Email" required>
             </div>
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="phone">Phone</label>
@@ -261,7 +263,7 @@ var editModalHTML = `
                 <select id="company" name="CompanyID" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
                     <option value="">No Company</option>
                     {{range .Companies}}
-                    <option value="{{.ID}}" {{if $.Contact.CompanyID}}{{if eq .ID $.Contact.CompanyID}}selected{{end}}{{end}}>{{.Name}}</option>
+                    <option value="{{.ID}}" {{if and $.Contact.CompanyID (eq .ID $.Contact.CompanyID)}}selected{{end}}>{{.Name}}</option>
                     {{end}}
                 </select>
             </div>
@@ -344,9 +346,77 @@ var changePasswordHTML = `
 </html>
 `
 
-func renderCard(w http.ResponseWriter, c Contact) {
+// Helper function to get current username from session
+func getCurrentUser(r *http.Request) (string, error) {
+	// First check if user is authenticated
+	sessionCookie, err := r.Cookie("session")
+	if err != nil || sessionCookie.Value != "authenticated" {
+		return "", fmt.Errorf("not authenticated")
+	}
+
+	// Try to get username from current_user cookie first (set during login)
+	if userCookie, err := r.Cookie("current_user"); err == nil {
+		return userCookie.Value, nil
+	}
+
+	// Fallback: try password_change_user cookie
+	if userCookie, err := r.Cookie("password_change_user"); err == nil {
+		return userCookie.Value, nil
+	}
+
+	return "", fmt.Errorf("user not found in session cookies")
+}
+
+// Helper function to check if contact belongs to current user
+func isCurrentUserContact(contactEmail string, r *http.Request) bool {
+	// Get current logged-in user from session
+	currentUser, err := getCurrentUser(r)
+	if err != nil {
+		fmt.Printf("DEBUG: Cannot get current user: %v\n", err)
+		return false
+	}
+
+	fmt.Printf("DEBUG: Current user: %s, Contact email: %s\n", currentUser, contactEmail)
+
+	// Direct comparison: if current user's username IS the contact email
+	// This works because users log in with email as username
+	if currentUser == contactEmail {
+		return true
+	}
+
+	// Additional check: if the current user has a contact record, check if it matches
+	user, err := db.GetUser(currentUser)
+	if err != nil {
+		fmt.Printf("DEBUG: Cannot get user from DB: %v\n", err)
+		return false
+	}
+
+	// If user has a contact ID, check if the contact email matches
+	if user.ContactID != nil {
+		contact, err := db.GetContact(*user.ContactID)
+		if err == nil && contact.Email == contactEmail {
+			return true
+		}
+	}
+
+	return false
+}
+
+func renderCard(w http.ResponseWriter, r *http.Request, c Contact) {
 	w.Header().Set("Content-Type", "text/html")
-	conCard.Execute(w, c)
+
+	// Check if this contact belongs to the current user
+	isCurrentUser := isCurrentUserContact(c.Email, r)
+
+	data := struct {
+		Contact       Contact
+		IsCurrentUser bool
+	}{
+		Contact:       c,
+		IsCurrentUser: isCurrentUser,
+	}
+
+	conCard.Execute(w, data)
 }
 
 func getCompanies(w http.ResponseWriter, r *http.Request) {
@@ -393,6 +463,115 @@ func getCompanies(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Search companies handler
+func searchCompanies(w http.ResponseWriter, r *http.Request) {
+	keyword := r.URL.Query().Get("q")
+	fmt.Printf("Search companies request received for keyword: '%s'\n", keyword)
+
+	w.Header().Set("Content-Type", "text/html")
+
+	var results []Company
+	var err error
+
+	if keyword == "" {
+		fmt.Println("No keyword provided, returning all companies")
+		results, err = db.GetAllCompanies()
+	} else {
+		results, err = db.SearchCompanies(keyword)
+	}
+
+	if err != nil {
+		http.Error(w, "Search failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("Found %d companies for keyword '%s'\n", len(results), keyword)
+
+	if len(results) == 0 {
+		fmt.Fprintf(w, `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No companies found for "%s"</td></tr>`, template.HTMLEscapeString(keyword))
+		return
+	}
+
+	for _, company := range results {
+		// Format created date
+		createdDate := company.CreatedAt
+		if len(company.CreatedAt) > 10 {
+			createdDate = company.CreatedAt[:10]
+		}
+
+		fmt.Fprintf(w, `
+        <tr id="company-row-%s">
+        <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">%s</div>
+            <div class="text-sm text-gray-500">ID: %s</div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Bank:</strong> %s</div>
+            <div class="text-sm text-gray-500"><strong>Account:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Number:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button class="text-blue-600 hover:text-blue-900 mr-3 p-1 rounded hover:bg-blue-50 transition-colors"
+                    hx-get="/modal/edit-company/%s"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    title="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            <button class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                    hx-delete="/companies/%s"
+                    hx-target="#company-row-%s"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to delete this company?"
+                    title="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </td>
+        </tr>`,
+			company.ID,
+			template.HTMLEscapeString(company.Name),
+			company.ID,
+			template.HTMLEscapeString(company.BankName),
+			template.HTMLEscapeString(company.AccountNumber),
+			getDocumentLinkWithPreview(company.AccountDocumentPath, "Account Document"),
+			template.HTMLEscapeString(company.RegistrationNumber),
+			getDocumentLinkWithPreview(company.RegistrationDocumentPath, "Registration Document"),
+			getCreatedByDisplay(company.CreatedBy), // Created By column
+			createdDate,                            // Created Date column
+			company.ID,
+			company.ID,
+			company.ID)
+	}
+}
+
+// Enhanced document link function with preview
+func getDocumentLinkWithPreview(filename, documentType string) string {
+	if filename == "" {
+		return "<span class='text-gray-400'>None</span>"
+	}
+	return fmt.Sprintf(`<a href="javascript:void(0)" onclick="previewDocument('%s', '%s')" class="text-blue-600 hover:text-blue-800">View</a>`, filename, documentType)
+}
+
 func addCompanyModal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	tmpl := template.Must(template.New("company-modal").Parse(addCompanyModalHTML))
@@ -405,72 +584,396 @@ func addCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//parse multipart form for file uploads
+	fmt.Println("=== DEBUG: Starting addCompany ===")
+
+	// Parse multipart form for file uploads
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		//32MB max
+		fmt.Printf("DEBUG: ParseMultipartForm error: %v\n", err)
 		http.Error(w, "File too large", http.StatusBadRequest)
 		return
 	}
+	fmt.Println("DEBUG: Multipart form parsed successfully")
 
-	//gen company ID
+	// Get current logged-in user
+	currentUser, err := getCurrentUser(r)
+	if err != nil {
+		fmt.Printf("DEBUG: Could not get current user: %v\n", err)
+		currentUser = "unknown" // fallback
+	}
+	fmt.Printf("DEBUG: Current user: %s\n", currentUser)
+
+	// Print all form values for debugging
+	fmt.Println("DEBUG: Form values:")
+	for key, values := range r.Form {
+		fmt.Printf("  %s: %v\n", key, values)
+	}
+
+	// Generate company ID
 	id, err := genID()
 	if err != nil {
+		fmt.Printf("DEBUG: genID error: %v\n", err)
 		http.Error(w, "Failed to generate ID", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("DEBUG: Generated company ID: %s\n", id)
 
-	//handle file uploads
+	// Handle file uploads
+	fmt.Println("DEBUG: Handling file uploads...")
 	accountDoc, err := handleFileUpload(r, "account_document")
 	if err != nil {
+		fmt.Printf("DEBUG: Account document upload error: %v\n", err)
 		http.Error(w, "Failed to upload account document: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("DEBUG: Account document: %s\n", accountDoc)
 
 	registrationDoc, err := handleFileUpload(r, "registration_document")
 	if err != nil {
-		//clean uploaded file if fails
+		fmt.Printf("DEBUG: Registration document upload error: %v\n", err)
+		// Clean uploaded file if fails
 		if accountDoc != "" {
 			deleteUploadedFile(accountDoc)
 		}
 		http.Error(w, "Failed to upload registration document: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("DEBUG: Registration document: %s\n", registrationDoc)
+
+	// Get form values
+	name := r.FormValue("name")
+	bankName := r.FormValue("bank_name")
+	accountNumber := r.FormValue("account_number")
+	registrationNumber := r.FormValue("registration_number")
+
+	fmt.Printf("DEBUG: Form data - Name: '%s', Bank: '%s', Account: '%s', Reg: '%s'\n",
+		name, bankName, accountNumber, registrationNumber)
+
+	// Validate required fields
+	if name == "" {
+		fmt.Println("DEBUG: Company name is required")
+		http.Error(w, "Company name is required", http.StatusBadRequest)
+		return
+	}
 
 	company := &Company{
 		ID:                       id,
-		Name:                     r.FormValue("name"),
-		BankName:                 r.FormValue("bank_name"),
-		AccountNumber:            r.FormValue("account_number"),
+		Name:                     name,
+		BankName:                 bankName,
+		AccountNumber:            accountNumber,
 		AccountDocumentPath:      accountDoc,
-		RegistrationNumber:       r.FormValue("registration_number"),
+		RegistrationNumber:       registrationNumber,
 		RegistrationDocumentPath: registrationDoc,
+		CreatedBy:                &currentUser, // Set the logged-in user
 	}
 
+	fmt.Printf("DEBUG: Attempting to create company: %+v\n", company)
+
+	// Create company in database
 	if err := db.CreateCompany(company); err != nil {
+		fmt.Printf("DEBUG: CreateCompany error: %v\n", err)
+		// Clean uploaded files if database operation fails
 		if accountDoc != "" {
 			deleteUploadedFile(accountDoc)
 		}
 		if registrationDoc != "" {
 			deleteUploadedFile(registrationDoc)
 		}
-		http.Error(w, "Failed to create company "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to create company: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	fmt.Println("DEBUG: Company created successfully in database")
+
 	w.Header().Set("Content-Type", "text/html")
+
+	// Get the actual created timestamp from the database
+	createdCompany, err := db.GetCompany(company.ID)
+	var createdDate string
+	if err != nil {
+		fmt.Printf("DEBUG: Could not get created company for timestamp: %v\n", err)
+		// Fallback to current time
+		createdDate = "Just now"
+	} else {
+		// Format the timestamp to show date and time
+		createdDate = formatTimestamp(createdCompany.CreatedAt)
+		if createdDate == "" {
+			createdDate = "Just now"
+		}
+	}
+
 	fmt.Fprintf(w, `
-		<div class="bg-white rounded-lg shadow-md p-6 mb-4" id="company-%s">
-        <h3 class="text-lg font-bold text-gray-800">%s</h3>
-        <div class="mt-2 text-sm text-gray-600">
-            <p><strong>Bank:</strong> %s</p>
-            <p><strong>Account:</strong> %s</p>
-            <p><strong>Registration:</strong> %s</p>
-        </div>
-        <div class="mt-4 flex justify-end space-x-2">
-            <button class="text-blue-600 hover:text-blue-800">Edit</button>
-            <button class="text-red-600 hover:text-red-800">Delete</button>
-        </div>
-    </div>`, company.ID, company.Name, company.BankName, company.AccountNumber, company.RegistrationNumber)
+    <tr id="company-row-%s">
+        <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">%s</div>
+            <div class="text-sm text-gray-500">ID: %s</div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Bank:</strong> %s</div>
+            <div class="text-sm text-gray-500"><strong>Account:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Number:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button class="text-blue-600 hover:text-blue-900 mr-3 p-1 rounded hover:bg-blue-50 transition-colors"
+                    hx-get="/modal/edit-company/%s"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    title="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            <button class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                    hx-delete="/companies/%s"
+                    hx-target="#company-row-%s"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to delete this company?"
+                    title="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </td>
+    </tr>`,
+		company.ID,                              // 1. %s - company.ID
+		template.HTMLEscapeString(company.Name), // 2. %s - company.Name
+		company.ID,                              // 3. %s - company.ID (for the ID display)
+		template.HTMLEscapeString(company.BankName),                                           // 4. %s - bank name
+		template.HTMLEscapeString(company.AccountNumber),                                      // 5. %s - account number
+		getDocumentLinkWithPreview(company.AccountDocumentPath, "Account Document"),           // 6. %s - account doc
+		template.HTMLEscapeString(company.RegistrationNumber),                                 // 7. %s - registration number
+		getDocumentLinkWithPreview(company.RegistrationDocumentPath, "Registration Document"), // 8. %s - reg doc
+		getCreatedByDisplay(company.CreatedBy),                                                // 9. %s - created by
+		createdDate,                                                                           // 10. %s - created date with timestamp
+		company.ID,                                                                            // 11. %s - company.ID (for edit button)
+		company.ID,                                                                            // 12. %s - company.ID (for delete button)
+		company.ID)                                                                            // 13. %s - company.ID (for delete target)
+
+	fmt.Println("=== DEBUG: addCompany completed successfully ===")
+}
+
+func getCreatedByDisplay(createdBy *string) string {
+	if createdBy == nil || *createdBy == "" {
+		return "System"
+	}
+	return *createdBy
+}
+
+// formatTimestamp formats database timestamp to readable format
+func formatTimestamp(timestamp string) string {
+	if timestamp == "" {
+		return ""
+	}
+
+	// If it's a full timestamp from database (e.g., "2024-01-15 14:30:25")
+	if len(timestamp) > 16 {
+		// Try to parse and format nicely
+		// For SQLite, the format is usually "YYYY-MM-DD HH:MM:SS"
+		if len(timestamp) >= 19 {
+			return timestamp[:16] // Show "YYYY-MM-DD HH:MM"
+		}
+		return timestamp
+	}
+
+	return timestamp
+}
+
+// Check if email already exists
+func checkEmail(w http.ResponseWriter, r *http.Request) {
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Validate email format
+	if !emailRegex.MatchString(email) {
+		fmt.Fprintf(w, `<span class="text-red-500 text-xs">Invalid email format</span>`)
+		return
+	}
+
+	// Check if email exists
+	_, err := db.GetContactByEmail(email)
+	if err == nil {
+		fmt.Fprintf(w, `<span class="text-red-500 text-xs">Email already exists</span>`)
+	} else {
+		fmt.Fprintf(w, `<span class="text-green-500 text-xs">Email available</span>`)
+	}
+}
+
+// Delete company handler
+func deleteCompany(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	fmt.Println("DELETE company request received for id:", id)
+
+	// Get company to find associated documents
+	company, err := db.GetCompany(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Delete uploaded files
+	if company.AccountDocumentPath != "" {
+		deleteUploadedFile(company.AccountDocumentPath)
+	}
+	if company.RegistrationDocumentPath != "" {
+		deleteUploadedFile(company.RegistrationDocumentPath)
+	}
+
+	// Delete company from database
+	if err := db.DeleteCompany(id); err != nil {
+		fmt.Println("Delete company error:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return empty content - HTMX will remove element
+	w.WriteHeader(http.StatusOK)
+}
+
+// Update company handler
+func updateCompany(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form for file uploads
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "File too large", http.StatusBadRequest)
+		return
+	}
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Get existing company
+	company, err := db.GetCompany(id)
+	if err != nil {
+		http.Error(w, "Company not found", http.StatusNotFound)
+		return
+	}
+
+	// Update basic fields
+	company.Name = r.FormValue("name")
+	company.BankName = r.FormValue("bank_name")
+	company.AccountNumber = r.FormValue("account_number")
+	company.RegistrationNumber = r.FormValue("registration_number")
+
+	// Handle file uploads - only update if new files are provided
+	if accountDoc, err := handleFileUpload(r, "account_document"); err == nil && accountDoc != "" {
+		// Delete old account document
+		if company.AccountDocumentPath != "" {
+			deleteUploadedFile(company.AccountDocumentPath)
+		}
+		company.AccountDocumentPath = accountDoc
+	}
+
+	if registrationDoc, err := handleFileUpload(r, "registration_document"); err == nil && registrationDoc != "" {
+		// Delete old registration document
+		if company.RegistrationDocumentPath != "" {
+			deleteUploadedFile(company.RegistrationDocumentPath)
+		}
+		company.RegistrationDocumentPath = registrationDoc
+	}
+
+	// Update company in database
+	if err := db.UpdateCompany(company); err != nil {
+		http.Error(w, "Failed to update company: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated table row
+	w.Header().Set("Content-Type", "text/html")
+
+	// Format created date
+	createdDate := formatTimestamp(company.CreatedAt)
+	if createdDate == "" {
+		createdDate = "Unknown"
+	}
+
+	fmt.Fprintf(w, `
+    <tr id="company-row-%s">
+        <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">%s</div>
+            <div class="text-sm text-gray-500">ID: %s</div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Bank:</strong> %s</div>
+            <div class="text-sm text-gray-500"><strong>Account:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Number:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button class="text-blue-600 hover:text-blue-900 mr-3 p-1 rounded hover:bg-blue-50 transition-colors"
+                    hx-get="/modal/edit-company/%s"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    title="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            <button class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                    hx-delete="/companies/%s"
+                    hx-target="#company-row-%s"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to delete this company?"
+                    title="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </td>
+    </tr>`,
+		company.ID,
+		template.HTMLEscapeString(company.Name),
+		company.ID,
+		template.HTMLEscapeString(company.BankName),
+		template.HTMLEscapeString(company.AccountNumber),
+		getDocumentLinkWithPreview(company.AccountDocumentPath, "Account Document"),
+		template.HTMLEscapeString(company.RegistrationNumber),
+		getDocumentLinkWithPreview(company.RegistrationDocumentPath, "Registration Document"),
+		createdDate,
+		company.ID,
+		company.ID,
+		company.ID)
+}
+
+// Helper function to display current document
+func getCurrentDocumentDisplay(filename string) string {
+	if filename == "" {
+		return "No document uploaded"
+	}
+	return fmt.Sprintf(`<a href="/uploads/%s" target="_blank" class="text-blue-600 hover:text-blue-800">View current</a>`, filename)
 }
 
 func getContacts(w http.ResponseWriter, r *http.Request) {
@@ -494,16 +997,21 @@ func getContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cardRendered := 0
+	// SINGLE RENDER LOOP - FIXED
 	for _, c := range contacts {
-		fmt.Printf("Rendering contact: %s %s (ID: %s)\n", c.FirstName, c.LastName, c.ID)
-		if err := conCard.Execute(w, c); err != nil {
-			fmt.Printf("Error rendering contact %s: %v\n", c.ID, err)
-			continue // Continue with next contact instead of failing completely
+		isCurrentUser := isCurrentUserContact(c.Email, r)
+		data := struct {
+			Contact       Contact
+			IsCurrentUser bool
+		}{
+			Contact:       c,
+			IsCurrentUser: isCurrentUser,
 		}
-		cardRendered++
+		if err := conCard.Execute(w, data); err != nil {
+			fmt.Printf("Error rendering contact %s: %v\n", c.ID, err)
+			continue
+		}
 	}
-	fmt.Printf("Successfully rendered %d contacts\n", cardRendered)
 	fmt.Printf("=== END GET /contacts ===\n")
 }
 
@@ -540,6 +1048,33 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 	// Email validation
 	if !emailRegex.MatchString(email) {
 		http.Error(w, "Invalid email address format", http.StatusBadRequest)
+		return
+	}
+
+	// Check if email already exists
+	existingContact, err := db.GetContactByEmail(email)
+	if err == nil && existingContact != nil {
+		fmt.Printf("Email already exists: %s\n", email)
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, `
+			<div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+				<div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+					<div class="flex justify-end">
+						<button hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+					</div>
+					<h3 class="text-xl font-bold mb-4 text-red-600">Error</h3>
+					<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+						<p class="text-red-800">A contact with email <strong>%s</strong> already exists.</p>
+					</div>
+					<div class="flex justify-end">
+						<button hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close"
+								class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300">
+							Close
+						</button>
+					</div>
+				</div>
+			</div>`, template.HTMLEscapeString(email))
 		return
 	}
 
@@ -589,6 +1124,31 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 
 	if err := db.CreateContact(newContact); err != nil {
 		fmt.Printf("Error creating contact: %v\n", err)
+		// Handle unique constraint error gracefully
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `
+				<div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+					<div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+						<div class="flex justify-end">
+							<button hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+						</div>
+						<h3 class="text-xl font-bold mb-4 text-red-600">Error</h3>
+						<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+							<p class="text-red-800">A contact with email <strong>%s</strong> already exists.</p>
+							<p class="text-red-600 text-sm mt-2">Please use a different email address.</p>
+						</div>
+						<div class="flex justify-end">
+							<button hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close"
+									class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300">
+								Close
+							</button>
+						</div>
+					</div>
+				</div>`, template.HTMLEscapeString(email))
+			return
+		}
 		http.Error(w, "Failed to create contact: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -615,7 +1175,7 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("New contact created: %s %s (ID: %s)\n", newContact.FirstName, newContact.LastName, newContact.ID)
-	renderCard(w, *newContact)
+	renderCard(w, r, *newContact)
 }
 
 func updateContact(w http.ResponseWriter, r *http.Request) {
@@ -647,10 +1207,17 @@ func updateContact(w http.ResponseWriter, r *http.Request) {
 	contact.Email = r.FormValue("Email")
 	contact.Phone = r.FormValue("Phone")
 	password := r.FormValue("Password")
+	companyID := r.FormValue("CompanyID")
 
 	// Only update password if provided
 	if password != "" {
 		contact.Password = password
+	}
+
+	if companyID == "" {
+		contact.CompanyID = nil
+	} else {
+		contact.CompanyID = &companyID
 	}
 
 	// Validate required fields
@@ -698,7 +1265,7 @@ func updateContact(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Printf("Successfully updated contact: %+v\n", contact)
-	renderCard(w, *contact)
+	renderCard(w, r, *contact)
 }
 
 func deleteContact(w http.ResponseWriter, r *http.Request) {
@@ -756,8 +1323,17 @@ func searchContacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SINGLE RENDER LOOP - FIXED
 	for _, c := range results {
-		if err := conCard.Execute(w, c); err != nil {
+		isCurrentUser := isCurrentUserContact(c.Email, r)
+		data := struct {
+			Contact       Contact
+			IsCurrentUser bool
+		}{
+			Contact:       c,
+			IsCurrentUser: isCurrentUser,
+		}
+		if err := conCard.Execute(w, data); err != nil {
 			fmt.Printf("Error rendering contact %s: %v\n", c.ID, err)
 			continue
 		}
@@ -881,17 +1457,160 @@ func editModal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Convert CompanyID pointer to string for template
+	companyIDStr := ""
+	if contact.CompanyID != nil {
+		companyIDStr = *contact.CompanyID
+	}
+
 	data := struct {
-		Contact   *Contact
-		Companies []Company
+		Contact      *Contact
+		Companies    []Company
+		CompanyIDStr string
 	}{
-		Contact:   contact,
-		Companies: companies,
+		Contact:      contact,
+		Companies:    companies,
+		CompanyIDStr: companyIDStr,
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	tmpl := template.Must(template.New("edit-modal").Parse(editModalHTML))
-	tmpl.Execute(w, data)
+
+	// Use a simpler template without pointer comparison issues
+	tmpl := template.Must(template.New("edit-modal").Parse(`
+    <div id="contact-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="flex justify-end">
+                <button hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <h3 class="text-xl font-bold mb-4">Edit Contact</h3>
+            <form id="contactForm"
+                  hx-put="/contacts/{{.Contact.ID}}"
+                  hx-target="#contact-{{.Contact.ID}}"
+                  hx-swap="outerHTML"
+                  hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#contact-modal'))">
+                <input type="hidden" name="id" value="{{.Contact.ID}}">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="contactType">Contact Type</label>
+                    <select id="contactType" name="ContactType" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <option value="Personal" {{if eq .Contact.ContactType "Personal"}}selected{{end}}>Personal</option>
+                        <option value="Work" {{if eq .Contact.ContactType "Work"}}selected{{end}}>Work</option>
+                        <option value="Family" {{if eq .Contact.ContactType "Family"}}selected{{end}}>Family</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="firstName">First Name</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="firstName" name="FirstName" type="text" value="{{.Contact.FirstName}}" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="lastName">Last Name</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="lastName" name="LastName" type="text" value="{{.Contact.LastName}}" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="email">Email</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="email" name="Email" type="email" value="{{.Contact.Email}}" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="phone">Phone</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="phone" name="Phone" type="tel" value="{{.Contact.Phone}}" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="company">Company</label>
+                    <select id="company" name="CompanyID" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <option value="">No Company</option>
+                        {{range .Companies}}
+                        <option value="{{.ID}}" {{if eq .ID $.CompanyIDStr}}selected{{end}}>{{.Name}}</option>
+                        {{end}}
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="password" name="Password" type="password" placeholder="Leave empty to keep current"
+                           value="{{if .Contact.Password}}{{.Contact.Password}}{{end}}">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to keep current password</p>
+                </div>
+                <div class="flex items-center justify-end">
+                    <button type="button" hx-target="#contact-modal" hx-swap="outerHTML" hx-get="/modal/close" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300 mr-2">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    `))
+
+	if err := tmpl.Execute(w, data); err != nil {
+		fmt.Printf("Error executing edit modal template: %v\n", err)
+		http.Error(w, "Failed to render modal", http.StatusInternalServerError)
+		return
+	}
+}
+
+// Edit company modal handler
+func editCompanyModal(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	company, err := db.GetCompany(id)
+	if err != nil {
+		http.Error(w, "Company not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+
+	// Create edit company modal HTML
+	editCompanyModalHTML := `
+    <div id="company-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="flex justify-end">
+                <button hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+            </div>
+            <h3 class="text-xl font-bold mb-4">Edit Company</h3>
+            <form id="companyForm" enctype="multipart/form-data"
+                  hx-put="/companies/` + company.ID + `"
+                  hx-target="#company-row-` + company.ID + `"
+                  hx-swap="outerHTML"
+                  hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#company-modal'))">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="companyName">Company Name</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="companyName" name="name" type="text" value="` + template.HTMLEscapeString(company.Name) + `" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="bankName">Bank Name</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="bankName" name="bank_name" type="text" value="` + template.HTMLEscapeString(company.BankName) + `">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="accountNumber">Account Number</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="accountNumber" name="account_number" type="text" value="` + template.HTMLEscapeString(company.AccountNumber) + `">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="accountDocument">Account Document</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="accountDocument" name="account_document" type="file" accept=".pdf,.jpg,.jpeg,.png">
+                    <p class="text-xs text-gray-500 mt-1">Current: ` + getCurrentDocumentDisplay(company.AccountDocumentPath) + `</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="registrationNumber">Registration Number</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="registrationNumber" name="registration_number" type="text" value="` + template.HTMLEscapeString(company.RegistrationNumber) + `">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="registrationDocument">Registration Document</label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                           id="registrationDocument" name="registration_document" type="file" accept=".pdf,.jpg,.jpeg,.png">
+                    <p class="text-xs text-gray-500 mt-1">Current: ` + getCurrentDocumentDisplay(company.RegistrationDocumentPath) + `</p>
+                </div>
+                <div class="flex items-center justify-end">
+                    <button type="button" hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close"
+                            class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300 mr-2">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>`
+
+	fmt.Fprint(w, editCompanyModalHTML)
 }
 
 func closeForm(w http.ResponseWriter, r *http.Request) {
@@ -923,9 +1642,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user.Password == password {
 		fmt.Printf("Login successful for user: %s\n", username)
+
+		//Set session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:  "session",
 			Value: "authenticated",
+			Path:  "/",
+		})
+
+		// Set current_user cookie for session tracking
+		http.SetCookie(w, &http.Cookie{
+			Name:  "current_user",
+			Value: username,
 			Path:  "/",
 		})
 
@@ -964,6 +1692,18 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		Path:   "/",
 		MaxAge: -1,
 	})
+	http.SetCookie(w, &http.Cookie{
+		Name:   "current_user",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:   "password_change_user",
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
+	})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -991,6 +1731,106 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// server companies page
+func companiesPageHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "static/companies.html")
+}
+
+// get companies for table view
+func getCompaniesTable(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+
+	companies, err := db.GetAllCompanies()
+	if err != nil {
+		http.Error(w, "Failed to fetch companies: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(companies) == 0 {
+		w.Write([]byte(`<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No companies found</td></tr>`))
+		return
+	}
+
+	for _, company := range companies {
+		// Format created date
+		createdDate := formatTimestamp(company.CreatedAt)
+		if createdDate == "" {
+			createdDate = "Unknown"
+		}
+
+		fmt.Fprintf(w, `
+        <tr id="company-row-%s">
+        <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">%s</div>
+            <div class="text-sm text-gray-500">ID: %s</div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Bank:</strong> %s</div>
+            <div class="text-sm text-gray-500"><strong>Account:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4">
+            <div class="text-sm text-gray-900"><strong>Number:</strong> %s</div>
+            <div class="text-sm text-gray-500">
+                <strong>Document:</strong>
+                %s
+            </div>
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            %s
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button class="text-blue-600 hover:text-blue-900 mr-3 p-1 rounded hover:bg-blue-50 transition-colors"
+                    hx-get="/modal/edit-company/%s"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                    title="Edit">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+            </button>
+            <button class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50 transition-colors"
+                    hx-delete="/companies/%s"
+                    hx-target="#company-row-%s"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to delete this company?"
+                    title="Delete">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </button>
+        </td>
+        </tr>`,
+			company.ID,
+			template.HTMLEscapeString(company.Name),
+			company.ID,
+			template.HTMLEscapeString(company.BankName),
+			template.HTMLEscapeString(company.AccountNumber),
+			getDocumentLinkWithPreview(company.AccountDocumentPath, "Account Document"),
+			template.HTMLEscapeString(company.RegistrationNumber),
+			getDocumentLinkWithPreview(company.RegistrationDocumentPath, "Registration Document"),
+			getCreatedByDisplay(company.CreatedBy), // Created By column
+			createdDate,                            // Created Date column
+			company.ID,
+			company.ID,
+			company.ID)
+	}
+}
+
+// get document link
+func getDocumentLink(filename string) string {
+	if filename == "" {
+		return "<span class='text-gray-400'>None</span>"
+	}
+	return fmt.Sprintf(`<a href="/uploads/%s" target="_blank" class="text-blue-600 hover:text-blue-800">View</a>`, filename)
+}
+
 func main() {
 	// Initialize database
 	var err error
@@ -1005,6 +1845,11 @@ func main() {
 	// Debug: users table
 	if err := db.DebugUserTable(); err != nil {
 		fmt.Printf("Debug error: %v\n", err)
+	}
+
+	// Make sure the uploads directory exists
+	if err := os.MkdirAll("./uploads", 0755); err != nil {
+		log.Printf("Warning: Could not create uploads directory: %v", err)
 	}
 
 	router := mux.NewRouter()
@@ -1059,6 +1904,24 @@ func main() {
 	authRouter.HandleFunc("/modal/add", addModal).Methods("GET")
 	authRouter.HandleFunc("/modal/edit/{id}", editModal).Methods("GET")
 	authRouter.HandleFunc("/modal/close", closeForm).Methods("GET")
+
+	// Companies page routes
+	authRouter.HandleFunc("/companies-page", companiesPageHandler).Methods("GET")
+	authRouter.HandleFunc("/companies-table", getCompaniesTable).Methods("GET")
+
+	// Company search endpoint
+	authRouter.HandleFunc("/search-companies", searchCompanies).Methods("GET")
+
+	// Email validation endpoint
+	authRouter.HandleFunc("/check-email", checkEmail).Methods("GET")
+
+	// Company edit and delete routes
+	authRouter.HandleFunc("/companies/{id}", deleteCompany).Methods("DELETE")
+	authRouter.HandleFunc("/modal/edit-company/{id}", editCompanyModal).Methods("GET")
+	authRouter.HandleFunc("/companies/{id}", updateCompany).Methods("PUT")
+
+	// File uploads serving
+	authRouter.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads", http.FileServer(http.Dir("./uploads"))))
 
 	authRouter.HandleFunc("/modal/add-company", addCompanyModal).Methods("GET")
 	authRouter.HandleFunc("/companies", addCompany).Methods("POST")

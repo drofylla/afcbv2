@@ -83,6 +83,15 @@ func InitDB() (*DB, error) {
 		}
 	}
 
+	// Add created_by column to companies table
+	_, err = db.Exec(`ALTER TABLE companies ADD COLUMN created_by TEXT`)
+	if err != nil {
+		// Ignore "duplicate column" errors
+		if !strings.Contains(err.Error(), "duplicate column") {
+			fmt.Printf("Note: Could not alter companies table: %v\n", err)
+		}
+	}
+
 	// Insert default admin user if not exists - mark as NOT needing password change
 	result, err := db.Exec(`INSERT OR IGNORE INTO users (username, password, needs_password_change) VALUES (?, ?, ?)`,
 		"af", "afcb", 0) // Admin doesn't need password change
@@ -103,18 +112,28 @@ func InitDB() (*DB, error) {
 // COMPANY HANDLERS
 func (db *DB) CreateCompany(company *Company) error {
 	_, err := db.Exec(`INSERT INTO companies
-		(id, name, bank_name, account_number, account_document_path, registration_number, registration_document_path)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		company.ID, company.Name, company.BankName, company.AccountNumber, company.AccountDocumentPath, company.RegistrationNumber, company.RegistrationDocumentPath)
+		(id, name, bank_name, account_number, account_document_path, registration_number, registration_document_path, created_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		company.ID, company.Name, company.BankName, company.AccountNumber, company.AccountDocumentPath, company.RegistrationNumber, company.RegistrationDocumentPath, company.CreatedBy)
+	if err != nil {
+		fmt.Printf("DEBUG: SQL Error in CreateCompany: %v\n", err)
+	}
 	return err
 }
 
 func (db *DB) GetCompany(id string) (*Company, error) {
 	var company Company
+	var createdBy sql.NullString
 	err := db.QueryRow(`SELECT id, name, bank_name, account_number, account_document_path,
-		registration_number, registration_document_path, created_at FROM companies WHERE id = ?`, id).Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber, &company.AccountDocumentPath, &company.RegistrationNumber, &company.RegistrationDocumentPath, &company.CreatedAt)
+        registration_number, registration_document_path, created_at, created_by FROM companies WHERE id = ?`, id).Scan(
+		&company.ID, &company.Name, &company.BankName, &company.AccountNumber,
+		&company.AccountDocumentPath, &company.RegistrationNumber,
+		&company.RegistrationDocumentPath, &company.CreatedAt, &createdBy)
 	if err != nil {
 		return nil, err
+	}
+	if createdBy.Valid {
+		company.CreatedBy = &createdBy.String
 	}
 	return &company, nil
 }
@@ -126,13 +145,15 @@ func (db *DB) UpdateCompany(company *Company) error {
 	return err
 }
 
-func (db *DB) DeleteCompany(id string) error {
-	_, err := db.Exec("DELETE FROM companies WHERE id = ?", id)
-	return err
-}
+func (db *DB) SearchCompanies(keyword string) ([]Company, error) {
+	query := `SELECT id, name, bank_name, account_number, account_document_path,
+                     registration_number, registration_document_path, created_at, created_by
+              FROM companies
+              WHERE name LIKE ? OR bank_name LIKE ? OR account_number LIKE ? OR registration_number LIKE ?
+              ORDER BY name`
 
-func (db *DB) GetAllCompanies() ([]Company, error) {
-	rows, err := db.Query("SELECT id, name, bank_name, account_number, registration_number, created_at FROM companies ORDER BY name")
+	likeKeyword := "%" + keyword + "%"
+	rows, err := db.Query(query, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +162,45 @@ func (db *DB) GetAllCompanies() ([]Company, error) {
 	var companies []Company
 	for rows.Next() {
 		var company Company
-		err := rows.Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber, &company.RegistrationNumber, &company.CreatedAt)
+		var createdBy sql.NullString
+		err := rows.Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber,
+			&company.AccountDocumentPath, &company.RegistrationNumber,
+			&company.RegistrationDocumentPath, &company.CreatedAt, &createdBy)
 		if err != nil {
 			return nil, err
+		}
+		if createdBy.Valid {
+			company.CreatedBy = &createdBy.String
+		}
+		companies = append(companies, company)
+	}
+	return companies, nil
+}
+
+func (db *DB) DeleteCompany(id string) error {
+	_, err := db.Exec("DELETE FROM companies WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) GetAllCompanies() ([]Company, error) {
+	rows, err := db.Query("SELECT id, name, bank_name, account_number, account_document_path, registration_number, registration_document_path, created_at, created_by FROM companies ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var companies []Company
+	for rows.Next() {
+		var company Company
+		var createdBy sql.NullString
+		err := rows.Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber,
+			&company.AccountDocumentPath, &company.RegistrationNumber,
+			&company.RegistrationDocumentPath, &company.CreatedAt, &createdBy)
+		if err != nil {
+			return nil, err
+		}
+		if createdBy.Valid {
+			company.CreatedBy = &createdBy.String
 		}
 		companies = append(companies, company)
 	}
@@ -286,10 +343,14 @@ func (db *DB) GetAllContacts() ([]Contact, error) {
 }
 
 func (db *DB) SearchContacts(keyword string) ([]Contact, error) {
-	query := `SELECT id, contact_type, first_name, last_name, email, phone, company_id FROM contacts WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? or phone LIKE ?`
+	query := `SELECT c.id, c.contact_type, c.first_name, c.last_name, c.email, c.phone, c.company_id
+              FROM contacts c
+              LEFT JOIN companies comp ON c.company_id = comp.id
+              WHERE c.first_name LIKE ? OR c.last_name LIKE ? OR c.email LIKE ? OR c.phone LIKE ? OR comp.name LIKE ?
+              ORDER BY c.first_name, c.last_name`
 
 	likeKeyword := "%" + keyword + "%"
-	rows, err := db.Query(query, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
+	rows, err := db.Query(query, likeKeyword, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
 	if err != nil {
 		return nil, err
 	}
@@ -351,4 +412,22 @@ func (db *DB) DebugUserTable() error {
 
 	fmt.Println("=== End debugging ===")
 	return nil
+}
+
+// GetContactByEmail retrieves a contact by email
+func (db *DB) GetContactByEmail(email string) (*Contact, error) {
+	var contact Contact
+	var companyID sql.NullString
+	err := db.QueryRow(`SELECT id, contact_type, first_name, last_name, email, phone, password, company_id FROM contacts WHERE email = ?`, email).Scan(
+		&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &contact.Password, &companyID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("contact not found with email: %s", email)
+		}
+		return nil, err
+	}
+	if companyID.Valid {
+		contact.CompanyID = &companyID.String
+	}
+	return &contact, nil
 }

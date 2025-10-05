@@ -9,4 +9,5 @@ type Company struct {
 	RegistrationNumber       string
 	RegistrationDocumentPath string
 	CreatedAt                string
+	CreatedBy                *string
 }

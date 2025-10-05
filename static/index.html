@@ -14,12 +14,20 @@
                     <div class="flex items-center">
                         <h1 class="text-2xl font-bold text-blue-600">AFcb</h1>
                     </div>
-                    <div class="flex items-center">
+                    <div class="flex items-center space-x-4">
+                        <a href="/" class="text-blue-600 font-semibold"
+                            >Contacts</a
+                        >
+                        <a
+                            href="/companies-page"
+                            class="text-gray-600 hover:text-blue-600"
+                            >Companies</a
+                        >
                         <div class="relative">
                             <input
                                 type="search"
                                 name="q"
-                                placeholder="Search..."
+                                placeholder="Search contacts..."
                                 class="pl-10 pr-4 py-2 rounded-lg border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
                                 hx-get="/search"
                                 hx-trigger="keyup changed delay:500ms, search"
@@ -45,7 +53,7 @@
                         </div>
                         <a
                             href="/logout"
-                            class="mx-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                         >
                             Logout
                         </a>
@@ -57,46 +65,22 @@
             <!-- Contacts Section -->
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-3xl font-bold text-gray-800">All Contacts</h2>
-                <div class="space-x-2">
-                    <button
-                        class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors duration-300"
-                        hx-get="/modal/add-company"
-                        hx-target="#modal-container"
-                        hx-swap="innerHTML"
-                    >
-                        Add Company
-                    </button>
-                    <button
-                        class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
-                        hx-get="/modal/add"
-                        hx-target="#modal-container"
-                        hx-swap="innerHTML"
-                    >
-                        Add Contact
-                    </button>
-                </div>
+                <button
+                    class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
+                    hx-get="/modal/add"
+                    hx-target="#modal-container"
+                    hx-swap="innerHTML"
+                >
+                    Add Contact
+                </button>
             </div>
             <div
                 id="contact-list"
-                class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-12"
+                class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
                 hx-get="/contacts"
                 hx-trigger="load"
                 hx-swap="innerHTML"
             ></div>
-
-            <!-- Companies Section -->
-            <div class="mt-12">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-3xl font-bold text-gray-800">Companies</h2>
-                </div>
-                <div
-                    id="company-list"
-                    class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2"
-                    hx-get="/companies"
-                    hx-trigger="load"
-                    hx-swap="innerHTML"
-                ></div>
-            </div>
         </main>
         <div id="modal-container"></div>
         <script src="/static/script.js"></script>
