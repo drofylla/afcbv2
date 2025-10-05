@@ -86,6 +86,60 @@ var conCard = template.Must(template.New("card").Parse(`
 </div>
 `))
 
+var addCompanyModalHTML = `
+<div id="company-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="flex justify-end">
+            <button hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <h3 class="text-xl font-bold mb-4">Add New Company</h3>
+        <form id="companyForm" enctype="multipart/form-data"
+              hx-post="/companies"
+              hx-target="#company-list"
+              hx-swap="afterbegin"
+              hx-on::after-request="if(event.detail.successful) htmx.remove(htmx.find('#company-modal'))">
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="companyName">Company Name</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="companyName" name="name" type="text" placeholder="Company Name" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="bankName">Bank Name</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="bankName" name="bank_name" type="text" placeholder="Bank Name">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="accountNumber">Account Number</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="accountNumber" name="account_number" type="text" placeholder="Account Number">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="accountDocument">Account Document</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="accountDocument" name="account_document" type="file" accept=".pdf,.jpg,.jpeg,.png">
+                <p class="text-xs text-gray-500 mt-1">Upload bank statement or account proof (PDF, JPG, PNG)</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="registrationNumber">Registration Number</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="registrationNumber" name="registration_number" type="text" placeholder="Registration Number">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="registrationDocument">Registration Document</label>
+                <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                       id="registrationDocument" name="registration_document" type="file" accept=".pdf,.jpg,.jpeg,.png">
+                <p class="text-xs text-gray-500 mt-1">Upload company registration document (PDF, JPG, PNG)</p>
+            </div>
+            <div class="flex items-center justify-end">
+                <button type="button" hx-target="#company-modal" hx-swap="outerHTML" hx-get="/modal/close"
+                        class="bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-600 transition-colors duration-300 mr-2">Cancel</button>
+                <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">Save Company</button>
+            </div>
+        </form>
+    </div>
+</div>
+`
+
 var addModalHTML = `
 <div id="contact-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
     <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
@@ -257,6 +311,86 @@ var changePasswordHTML = `
 func renderCard(w http.ResponseWriter, c Contact) {
 	w.Header().Set("Content-Type", "text/html")
 	conCard.Execute(w, c)
+}
+
+func addCompanyModal(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	tmpl := template.Must(template.New("company-modal").Parse(addCompanyModalHTML))
+	tmpl.Execute(w, nil)
+}
+
+func addCompany(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	//parse multipart form for file uploads
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		//32MB max
+		http.Error(w, "File too large", http.StatusBadRequest)
+		return
+	}
+
+	//gen company ID
+	id, err := genID()
+	if err != nil {
+		http.Error(w, "Failed to generate ID", http.StatusInternalServerError)
+		return
+	}
+
+	//handle file uploads
+	accountDoc, err := handleFileUpload(r, "account_document")
+	if err != nil {
+		http.Error(w, "Failed to upload account document: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	registrationDoc, err := handleFileUpload(r, "registration_document")
+	if err != nil {
+		//clean uploaded file if fails
+		if accountDoc != "" {
+			deleteUploadedFile(accountDoc)
+		}
+		http.Error(w, "Failed to upload registration document: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	company := &Company{
+		ID:                       id,
+		Name:                     r.FormValue("name"),
+		BankName:                 r.FormValue("bank_name"),
+		AccountNumber:            r.FormValue("account_number"),
+		AccountDocumentPath:      accountDoc,
+		RegistrationNumber:       r.FormValue("registration_number"),
+		RegistrationDocumentPath: registrationDoc,
+	}
+
+	if err := db.CreateCompany(company); err != nil {
+		if accountDoc != "" {
+			deleteUploadedFile(accountDoc)
+		}
+		if registrationDoc != "" {
+			deleteUploadedFile(registrationDoc)
+		}
+		http.Error(w, "Failed to create company "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	fmt.Fprintf(w, `
+		<div class="bg-white rounded-lg shadow-md p-6 mb-4" id="company-%s">
+        <h3 class="text-lg font-bold text-gray-800">%s</h3>
+        <div class="mt-2 text-sm text-gray-600">
+            <p><strong>Bank:</strong> %s</p>
+            <p><strong>Account:</strong> %s</p>
+            <p><strong>Registration:</strong> %s</p>
+        </div>
+        <div class="mt-4 flex justify-end space-x-2">
+            <button class="text-blue-600 hover:text-blue-800">Edit</button>
+            <button class="text-red-600 hover:text-red-800">Delete</button>
+        </div>
+    </div>`, company.ID, company.Name, company.BankName, company.AccountNumber, company.RegistrationNumber)
 }
 
 func getContacts(w http.ResponseWriter, r *http.Request) {
