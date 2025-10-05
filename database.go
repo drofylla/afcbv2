@@ -203,25 +203,29 @@ func (db *DB) DeleteUser(username string) error {
 // CONTACTS HANDLERS
 func (db *DB) CreateContact(contact *Contact) error {
 	_, err := db.Exec(`INSERT INTO contacts
-		(id, contact_type, first_name, last_name, email, phone, password)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		contact.ID, contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password)
+		(id, contact_type, first_name, last_name, email, phone, password, company_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		contact.ID, contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password, contact.CompanyID)
 	return err
 }
 
 func (db *DB) GetContact(id string) (*Contact, error) {
 	var contact Contact
-	err := db.QueryRow(`SELECT id, contact_type, first_name, last_name, email, phone, password FROM contacts WHERE id = ?`, id).Scan(
-		&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &contact.Password)
+	var companyID sql.NullString
+	err := db.QueryRow(`SELECT id, contact_type, first_name, last_name, email, phone, password, company_id FROM contacts WHERE id = ?`, id).Scan(
+		&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &contact.Password, &companyID)
 	if err != nil {
 		return nil, err
+	}
+	if companyID.Valid {
+		contact.CompanyID = &companyID.String
 	}
 	return &contact, nil
 }
 
 func (db *DB) UpdateContact(contact *Contact) error {
-	_, err := db.Exec(`UPDATE contacts SET contact_type = ?, first_name = ?, last_name = ?, email = ?, phone = ?, password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password, contact.ID)
+	_, err := db.Exec(`UPDATE contacts SET contact_type = ?, first_name = ?, last_name = ?, email = ?, phone = ?, password = ?, company_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		contact.ContactType, contact.FirstName, contact.LastName, contact.Email, contact.Phone, contact.Password, contact.CompanyID, contact.ID)
 	return err
 }
 
