@@ -91,6 +91,56 @@ func InitDB() (*DB, error) {
 	return &DB{db}, nil
 }
 
+// COMPANY HANDLERS
+func (db *DB) CreateCompany(company *Company) error {
+	_, err := db.Exec(`INSERT INTO companies
+		(id, name, bank_name, account_number, account_document_path, registration_number, registration_document_path)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		company.ID, company.Name, company.BankName, company.AccountNumber, company.AccountDocumentPath, company.RegistrationNumber, company.RegistrationDocumentPath)
+	return err
+}
+
+func (db *DB) GetCompany(id string) (*Company, error) {
+	var company Company
+	err := db.QueryRow(`SELECT id, name, bank_name, account_number, account_document_path,
+		registration_number, registration_document_path, created_at FROM companies WHERE id = ?`, id).Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber, &company.AccountDocumentPath, &company.RegistrationNumber, &company.RegistrationDocumentPath, &company.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &company, nil
+}
+
+func (db *DB) UpdateCompany(company *Company) error {
+	_, err := db.Exec(`UPDATE companies SET
+		name = ?, bank_name = ?, account_number = ?, account_document_path = ?, registration_number = ?, registration_document_path = ? WHERE id = ?`,
+		company.Name, company.BankName, company.AccountNumber, company.AccountDocumentPath, company.RegistrationNumber, company.RegistrationDocumentPath, company.ID)
+	return err
+}
+
+func (db *DB) DeleteCompany(id string) error {
+	_, err := db.Exec("DELETE FROM companies WHERE id = ?", id)
+	return err
+}
+
+func (db *DB) GetAllCompanies() ([]Company, error) {
+	rows, err := db.Query("SELECT id, name, bank_name, account_number, registration_number, created_at FROM companies ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var companies []Company
+	for rows.Next() {
+		var company Company
+		err := rows.Scan(&company.ID, &company.Name, &company.BankName, &company.AccountNumber, &company.RegistrationNumber, &company.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		companies = append(companies, company)
+	}
+	return companies, nil
+}
+
 // USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
