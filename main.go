@@ -178,6 +178,15 @@ var addModalHTML = `
                 <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" id="phone" name="Phone" type="tel" placeholder="Phone" required>
             </div>
             <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="company">Company</label>
+                <select id="company" name="CompanyID" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                    <option value="">No Company</option>
+                    {{range .Companies}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="password">Password</label>
                 <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                        id="password" name="Password" type="password" placeholder="Password for login">
@@ -804,8 +813,21 @@ func changePasswordHandler(w http.ResponseWriter, r *http.Request) {
 // MODAL HANDLERS
 func addModal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
+
+	companies, err := db.GetCompanies()
+	if err != nil {
+		http.Error(w, "Failed to fetch companies: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		Companies []Company
+	}{
+		Companies: companies,
+	}
+
 	tmpl := template.Must(template.New("modal").Parse(addModalHTML))
-	tmpl.Execute(w, nil)
+	tmpl.Execute(w, data)
 }
 
 func editModal(w http.ResponseWriter, r *http.Request) {
@@ -986,6 +1008,10 @@ func main() {
 	authRouter.HandleFunc("/modal/add", addModal).Methods("GET")
 	authRouter.HandleFunc("/modal/edit/{id}", editModal).Methods("GET")
 	authRouter.HandleFunc("/modal/close", closeForm).Methods("GET")
+
+	authRouter.HandleFunc("/modal/add-company", addCompanyModal).Methods("GET")
+	authRouter.HandleFunc("/companies", addCompany).Methods("POST")
+	// authRouter.HandleFunc("/companies", getCAll).Methods("GET")
 
 	// Search endpoint
 	authRouter.HandleFunc("/search", searchContacts).Methods("GET")

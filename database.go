@@ -141,6 +141,25 @@ func (db *DB) GetAllCompanies() ([]Company, error) {
 	return companies, nil
 }
 
+func (db *DB) GetCompanies() ([]Company, error) {
+	rows, err := db.Query("SELECT id, name FROM companies ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var companies []Company
+	for rows.Next() {
+		var company Company
+		err := rows.Scan(&company.ID, &company.Name)
+		if err != nil {
+			return nil, err
+		}
+		companies = append(companies, company)
+	}
+	return companies, nil
+}
+
 // USERS HANDLERS
 func (db *DB) GetUser(username string) (*User, error) {
 	var user User
