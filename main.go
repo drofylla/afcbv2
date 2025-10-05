@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -16,11 +17,28 @@ var emailRegex = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 
 const dataFile = "AFcb.db" // Now using SQLite database
 
-var conCard = template.Must(template.New("card").Parse(`
-    <div class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all duration-300" id="contact-{{.ID}}">
+var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
+	"getCompanyName": func(companyID *string) string {
+		if companyID == nil || *companyID == "" {
+			return ""
+		}
+		company, err := db.GetCompany(*companyID)
+		if err != nil {
+			fmt.Printf("Error getting company %s: %v\n", *companyID, err)
+			return ""
+		}
+		return company.Name
+	},
+}).Parse(`
+	<div class="card bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition-all duration-300" id="contact-{{.ID}}">
     <div class="details">
         <span class="id text-xs font-semibold text-gray-500">ID: {{.ID}}</span>
         <strong class="name block text-xl font-bold text-gray-800 mt-1">{{.FirstName}} {{.LastName}}</strong>
+        {{if .CompanyID}}
+        <div class="company mt-1">
+            <span class="text-sm text-gray-600">{{getCompanyName .CompanyID}}</span>
+        </div>
+        {{end}}
         <span class="type inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium
             {{if eq .ContactType "Personal"}}bg-blue-100 text-blue-800
             {{else if eq .ContactType "Work"}}bg-green-100 text-green-800
@@ -331,6 +349,50 @@ func renderCard(w http.ResponseWriter, c Contact) {
 	conCard.Execute(w, c)
 }
 
+func getCompanies(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+
+	companies, err := db.GetCompanies()
+	if err != nil {
+		http.Error(w, "Failed to fetch companies: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("Returning %d companies\n", len(companies))
+
+	if len(companies) == 0 {
+		fmt.Fprintf(w, `<div class="flex items-center justify-center p-8 bg-gray-100 text-gray-500 rounded-lg shadow-md">
+            No companies found. Add your first company!
+        </div>`)
+		return
+	}
+
+	for _, company := range companies {
+		fmt.Fprintf(w, `
+        <div class="bg-white rounded-lg shadow-md p-6 mb-4" id="company-%s">
+            <h3 class="text-lg font-bold text-gray-800">%s</h3>
+            <div class="mt-2 text-sm text-gray-600">
+                <p><strong>Bank:</strong> %s</p>
+                <p><strong>Account:</strong> %s</p>
+                <p><strong>Registration:</strong> %s</p>
+            </div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button class="text-blue-600 hover:text-blue-800"
+                        hx-get="/modal/edit-company/%s"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML">Edit</button>
+                <button class="text-red-600 hover:text-red-800"
+                        hx-delete="/companies/%s"
+                        hx-target="#company-%s"
+                        hx-swap="outerHTML"
+                        hx-confirm="Are you sure you want to delete this company?">Delete</button>
+            </div>
+        </div>`,
+			company.ID, company.Name, company.BankName, company.AccountNumber,
+			company.RegistrationNumber, company.ID, company.ID, company.ID)
+	}
+}
+
 func addCompanyModal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	tmpl := template.Must(template.New("company-modal").Parse(addCompanyModalHTML))
@@ -456,100 +518,62 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := r.FormValue("id")
 	contactType := r.FormValue("ContactType")
 	firstName := r.FormValue("FirstName")
 	lastName := r.FormValue("LastName")
 	email := r.FormValue("Email")
 	phone := r.FormValue("Phone")
 	password := r.FormValue("Password")
+	companyID := r.FormValue("CompanyID")
 
-	fmt.Printf("Received form data - ID: '%s', Type: '%s', Name: '%s %s', Email: '%s', Phone: '%s'\n",
-		id, contactType, firstName, lastName, email, phone)
+	fmt.Printf("Received form data - Type: '%s', Name: '%s %s', Email: '%s', Phone: '%s', Password: '%s', CompanyID: '%s'\n",
+		contactType, firstName, lastName, email, phone, password, companyID)
+
+	// Validate required fields
+	if firstName == "" || lastName == "" || email == "" || phone == "" {
+		fmt.Printf("Missing required fields: FirstName='%s', LastName='%s', Email='%s', Phone='%s'\n",
+			firstName, lastName, email, phone)
+		http.Error(w, "All fields are required", http.StatusBadRequest)
+		return
+	}
 
 	// Email validation
 	if !emailRegex.MatchString(email) {
-		http.Error(w, "Invalid email address input", http.StatusBadRequest)
+		http.Error(w, "Invalid email address format", http.StatusBadRequest)
 		return
 	}
 
-	if id != "" {
-		// Update existing contact
-		contact, err := db.GetContact(id)
-		if err != nil {
-			http.Error(w, "Contact not found", http.StatusNotFound)
-			return
-		}
-
-		contact.ContactType = contactType
-		contact.FirstName = firstName
-		contact.LastName = lastName
-		contact.Email = email
-		contact.Phone = phone
-
-		// Only update password if provided
-		if password != "" {
-			contact.Password = password
-		}
-
-		if err := db.UpdateContact(contact); err != nil {
-			http.Error(w, "Failed to update contact: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// Create/update user account for this contact
-		user := &User{
-			Username:  email,
-			Password:  contact.Password, // Use the contact's password (may be updated)
-			ContactID: &id,
-		}
-
-		// Check if user already exists and update/create accordingly
-		existingUser, err := db.GetUser(email)
-		if err != nil {
-			// User doesn't exist, create new one
-			if err := db.CreateUser(user); err != nil {
-				fmt.Printf("Warning: Failed to create user account for contact: %v\n", err)
-			}
-		} else {
-			// User exists, update password if changed
-			if existingUser.Password != user.Password {
-				if err := db.UpdateUserPassword(email, user.Password); err != nil {
-					fmt.Printf("Warning: Failed to update user password: %v\n", err)
-				}
-			}
-		}
-
-		fmt.Printf("Contact updated: %s %s (ID: %s)\n", contact.FirstName, contact.LastName, contact.ID)
-		renderCard(w, *contact)
-		return
-	}
-
-	// Create new contact
+	// Generate ID for new contact
 	newID, err := genID()
 	if err != nil {
 		http.Error(w, "Failed to generate ID", http.StatusInternalServerError)
 		return
 	}
 
-	//Generate default password
+	// Generate default password if not provided
 	if password == "" {
 		// Get last 3 characters of phone
 		phoneLast3 := ""
 		if len(phone) >= 3 {
 			phoneLast3 = phone[len(phone)-3:]
 		} else {
-			phoneLast3 = phone // Use entire phone if less than 3 characters
+			phoneLast3 = phone
 		}
 
 		// Get first letter of first name (uppercase)
 		firstNameFirstLetter := ""
 		if len(firstName) > 0 {
-			firstNameFirstLetter = string(firstName[0])
+			firstNameFirstLetter = strings.ToUpper(string(firstName[0]))
 		}
 
 		password = phoneLast3 + firstNameFirstLetter
 		fmt.Printf("Auto-generated password: %s (from phone: %s, first name: %s)\n", password, phone, firstName)
+	}
+
+	// Handle companyID for new contact
+	var companyIDPtr *string
+	if companyID != "" {
+		companyIDPtr = &companyID
 	}
 
 	newContact := &Contact{
@@ -560,9 +584,11 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 		Email:       email,
 		Phone:       phone,
 		Password:    password,
+		CompanyID:   companyIDPtr,
 	}
 
 	if err := db.CreateContact(newContact); err != nil {
+		fmt.Printf("Error creating contact: %v\n", err)
 		http.Error(w, "Failed to create contact: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -575,22 +601,20 @@ func addContact(w http.ResponseWriter, r *http.Request) {
 		NeedPasswordChange: true,
 	}
 
-	// Check existing user
+	// Check if user already exists
 	_, err = db.GetUser(email)
 	if err != nil {
 		// User doesn't exist, create new one
 		if err := db.CreateUser(user); err != nil {
 			fmt.Printf("Warning: Failed to create user account for contact: %v\n", err)
 		} else {
-			fmt.Printf("User account created for contact: %s with password: %s\n", email, password)
+			fmt.Printf("User account created for contact: %s\n", email)
 		}
 	} else {
-		// User already exists (unexpected for new contact)
 		fmt.Printf("Warning: User account already exists for email: %s\n", email)
 	}
 
-	fmt.Printf("New contact created with ID: %s. Name: %s %s, Password: %s\n",
-		newContact.ID, newContact.FirstName, newContact.LastName, newContact.Password)
+	fmt.Printf("New contact created: %s %s (ID: %s)\n", newContact.FirstName, newContact.LastName, newContact.ID)
 	renderCard(w, *newContact)
 }
 
@@ -836,7 +860,11 @@ func addModal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tmpl := template.Must(template.New("modal").Parse(addModalHTML))
-	tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		fmt.Printf("Template execution error: %v\n", err)
+		http.Error(w, "Failed to render modal", http.StatusInternalServerError)
+		return
+	}
 }
 
 func editModal(w http.ResponseWriter, r *http.Request) {
@@ -1034,7 +1062,7 @@ func main() {
 
 	authRouter.HandleFunc("/modal/add-company", addCompanyModal).Methods("GET")
 	authRouter.HandleFunc("/companies", addCompany).Methods("POST")
-	// authRouter.HandleFunc("/companies", getCAll).Methods("GET")
+	authRouter.HandleFunc("/companies", getCompanies).Methods("GET")
 
 	// Search endpoint
 	authRouter.HandleFunc("/search", searchContacts).Methods("GET")

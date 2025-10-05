@@ -44,7 +44,7 @@
                             </div>
                         </div>
                         <a
-                            href="/login"
+                            href="/logout"
                             class="mx-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                         >
                             Logout
@@ -54,24 +54,49 @@
             </div>
         </nav>
         <main class="container mx-auto px-4 py-8">
+            <!-- Contacts Section -->
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-3xl font-bold text-gray-800">All Contacts</h2>
-                <button
-                    class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
-                    hx-get="/modal/add"
-                    hx-target="#modal-container"
-                    hx-swap="innerHTML"
-                >
-                    Add Contact
-                </button>
+                <div class="space-x-2">
+                    <button
+                        class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors duration-300"
+                        hx-get="/modal/add-company"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                    >
+                        Add Company
+                    </button>
+                    <button
+                        class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
+                        hx-get="/modal/add"
+                        hx-target="#modal-container"
+                        hx-swap="innerHTML"
+                    >
+                        Add Contact
+                    </button>
+                </div>
             </div>
             <div
                 id="contact-list"
-                class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-12"
                 hx-get="/contacts"
                 hx-trigger="load"
                 hx-swap="innerHTML"
             ></div>
+
+            <!-- Companies Section -->
+            <div class="mt-12">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Companies</h2>
+                </div>
+                <div
+                    id="company-list"
+                    class="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2"
+                    hx-get="/companies"
+                    hx-trigger="load"
+                    hx-swap="innerHTML"
+                ></div>
+            </div>
         </main>
         <div id="modal-container"></div>
         <script src="/static/script.js"></script>

@@ -65,6 +65,15 @@ func InitDB() (*DB, error) {
 		}
 	}
 
+	// ensure company_id column exists in contacts table
+	_, err = db.Exec(`ALTER TABLE contacts ADD COLUMN company_id TEXT`)
+	if err != nil {
+		// Ignore "duplicate column" errors
+		if !strings.Contains(err.Error(), "duplicate column") {
+			fmt.Printf("Note: Could not alter contacts table: %v\n", err)
+		}
+	}
+
 	// ensure the needs_password_change column exists
 	_, err = db.Exec(`ALTER TABLE users ADD COLUMN needs_password_change BOOLEAN DEFAULT 1`)
 	if err != nil {
@@ -254,7 +263,7 @@ func (db *DB) DeleteContact(id string) error {
 }
 
 func (db *DB) GetAllContacts() ([]Contact, error) {
-	rows, err := db.Query("SELECT id, contact_type, first_name, last_name, email, phone FROM contacts")
+	rows, err := db.Query("SELECT id, contact_type, first_name, last_name, email, phone, company_id FROM contacts")
 	if err != nil {
 		return nil, err
 	}
@@ -263,9 +272,13 @@ func (db *DB) GetAllContacts() ([]Contact, error) {
 	var contacts []Contact
 	for rows.Next() {
 		var contact Contact
-		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone)
+		var companyID sql.NullString
+		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &companyID)
 		if err != nil {
 			return nil, err
+		}
+		if companyID.Valid {
+			contact.CompanyID = &companyID.String
 		}
 		contacts = append(contacts, contact)
 	}
@@ -273,7 +286,7 @@ func (db *DB) GetAllContacts() ([]Contact, error) {
 }
 
 func (db *DB) SearchContacts(keyword string) ([]Contact, error) {
-	query := `SELECT id, contact_type, first_name, last_name, email, phone FROM contacts WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? or phone LIKE ?`
+	query := `SELECT id, contact_type, first_name, last_name, email, phone, company_id FROM contacts WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? or phone LIKE ?`
 
 	likeKeyword := "%" + keyword + "%"
 	rows, err := db.Query(query, likeKeyword, likeKeyword, likeKeyword, likeKeyword)
@@ -285,16 +298,19 @@ func (db *DB) SearchContacts(keyword string) ([]Contact, error) {
 	var contacts []Contact
 	for rows.Next() {
 		var contact Contact
-		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone)
+		var companyID sql.NullString
+		err := rows.Scan(&contact.ID, &contact.ContactType, &contact.FirstName, &contact.LastName, &contact.Email, &contact.Phone, &companyID)
 		if err != nil {
 			return nil, err
+		}
+		if companyID.Valid {
+			contact.CompanyID = &companyID.String
 		}
 		contacts = append(contacts, contact)
 	}
 	return contacts, nil
 }
 
-// Add this function to debug the database schema
 func (db *DB) DebugUserTable() error {
 	fmt.Println("=== Debugging users table ===")
 
