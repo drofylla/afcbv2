@@ -346,6 +346,97 @@ var changePasswordHTML = `
 </html>
 `
 
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	// Check if user is admin
+	isAdmin := false
+	currentUser, err := getCurrentUser(r)
+	if err == nil && currentUser == "af" {
+		isAdmin = true
+	}
+
+	data := struct {
+		IsAdmin bool
+	}{
+		IsAdmin: isAdmin,
+	}
+
+	tmpl := template.Must(template.ParseFiles("static/index.html"))
+	tmpl.Execute(w, data)
+}
+
+// helper for admin check
+func isAdmin(r *http.Request) bool {
+	currentUser, err := getCurrentUser(r)
+	if err != nil {
+		return false
+	}
+	return currentUser == "af"
+}
+
+func licenseAdminHandler(w http.ResponseWriter, r *http.Request) {
+	//check if user is admin
+	if !isAdmin(r) {
+		http.Error(w, "Forbidden - Admin access required", http.StatusForbidden)
+		return
+	}
+	// Check if user is authenticated as admin
+	sessionCookie, err := r.Cookie("session")
+	if err != nil || sessionCookie.Value != "authenticated" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Get current user from session
+	currentUser, err := getCurrentUser(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user is the admin "af"
+	if currentUser != "af" {
+		http.Error(w, "Forbidden - Admin access required", http.StatusForbidden)
+		return
+	}
+
+	// Rest of your existing license admin code
+	licenseManager, err := NewLicenseManager()
+	if err != nil {
+		http.Error(w, "License system error", http.StatusInternalServerError)
+		return
+	}
+
+	licenseKey := os.Getenv("AFCB_LICENSE_KEY")
+	if licenseKey == "" {
+		fmt.Fprintf(w, "<div class='bg-yellow-100 p-4 rounded'>No license active (Trial Mode)</div>")
+		return
+	}
+
+	license, err := licenseManager.ValidateLicense(licenseKey)
+	if err != nil {
+		fmt.Fprintf(w, "<div class='bg-red-100 p-4 rounded'>Invalid license: %v</div>", err)
+		return
+	}
+
+	// Display license info
+	fmt.Fprintf(w, `
+	<div class="bg-white p-6 rounded-lg shadow-md">
+		<h3 class="text-lg font-bold mb-4">License Information</h3>
+		<div class="grid grid-cols-2 gap-4">
+			<div><strong>Company:</strong> %s</div>
+			<div><strong>Type:</strong> %s</div>
+			<div><strong>Expires:</strong> %s</div>
+			<div><strong>Max Users:</strong> %d</div>
+			<div><strong>Domain:</strong> %s</div>
+			<div><strong>Issued:</strong> %s</div>
+		</div>
+	</div>
+	`, license.CompanyName, license.LicenseType,
+		license.ExpiryDate.Format("2006-01-02"),
+		license.MaxUsers, license.Domain,
+		license.IssueDate.Format("2006-01-02"))
+}
+
 // Helper function to get current username from session
 func getCurrentUser(r *http.Request) (string, error) {
 	// First check if user is authenticated
@@ -1887,12 +1978,17 @@ func main() {
 	authRouter := router.PathPrefix("/").Subrouter()
 	authRouter.Use(authMiddleware)
 
-	authRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/index.html")
-	})
+	// authRouter.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// http.ServeFile(w, r, "static/index.html")
+	// })
+
+	authRouter.HandleFunc("/", indexHandler).Methods("GET")
 
 	// Static file server
 	authRouter.PathPrefix("/static/").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
+
+	// Licensing
+	authRouter.HandleFunc("/admin/license", licenseAdminHandler).Methods("GET")
 
 	// Contact API endpoints
 	authRouter.HandleFunc("/contacts", getContacts).Methods("GET")
