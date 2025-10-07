@@ -147,11 +147,18 @@ func (lg *LicenseGenerator) GeneratePermanentLicense(companyName, email, domain 
 	return lg.GenerateLicense(licenseData)
 }
 
-func GenerateLicenseCLI() {
+func main() {
 	if len(os.Args) < 2 {
+		fmt.Println("AFcb License Generator")
+		fmt.Println("-----------------------")
 		fmt.Println("Usage:")
-		fmt.Println(" go run license_gen.go trial <company> <email> <days>")
-		fmt.Println(" go run license_gen.go keygen (generate new key pair")
+		fmt.Println("  go run license_gen.go keygen                          - Generate new key pair")
+		fmt.Println("  go run license_gen.go trial <company> <email> <days>  - Generate trial license")
+		fmt.Println("  go run license_gen.go commercial <company> <email> <domain> <max_users> <months> - Generate commercial license")
+		fmt.Println("")
+		fmt.Println("Examples:")
+		fmt.Println("  go run license_gen.go trial \"Drofylla Corp\" \"af@drofylla.com\" 30")
+		fmt.Println("  go run license_gen.go permanent \"rofylla Corp\" \"af@drofylla.com\" \"drofylla.com\" 50 12")
 		return
 	}
 
@@ -181,7 +188,7 @@ func GenerateLicenseCLI() {
 	case "trial":
 		if len(os.Args) != 5 {
 			fmt.Println("Usage: go run license_gen.go trial <company> <email> <days>")
-			return
+			os.Exit(1)
 		}
 		company := os.Args[2]
 		email := os.Args[3]

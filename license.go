@@ -30,8 +30,15 @@ type LicenseManager struct {
 
 func NewLicenseManager() (*LicenseManager, error) {
 	//Public key should match private key used to generate licenses
-	publicKeyPEM := `<---BEGIN PUBLIC KEY--->
-	<---END PUBLIC KEY--->`
+	publicKeyPEM := `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzPH31szhqbLkNxChlinG
+zHhepT7fmDNbnY4ziB1O3mMKECvvKZ+WkdeaBS0YTgOeoDYcSZ/Y41wLUOdWmw4G
+JTL2PmCU/PDuew350Kr2SU4JhA817Q3TOioFJBU6ImMgEeB4R77JB5xmo3r5byEV
+B1cP7KOnWg88duouZdvGc2+VXIRQvioj61Z0ufmZ4pVdVQCXiK5D1TStju3rcYa0
+ZdnD1IdNinwtSJMmS6dMm7YVi5R6dF2jRbxCHNWgNCiDo/GhFATKN1RJ97VGmTyV
+pjPbiFu9dEvcDuB5ud3G025CJJ/QwZuw32qxgo/Okk48FBLWWTBHsnIIMUDVmR0j
+BQIDAQAB
+-----END PUBLIC KEY-----`
 
 	block, _ := pem.Decode([]byte(publicKeyPEM))
 	if block == nil {
@@ -107,7 +114,7 @@ func (lm *LicenseManager) CheckLicenseRequirements() error {
 	return nil
 }
 
-func (lm *LicenseManager) getCurrentUserCount() (int, err) {
+func (lm *LicenseManager) getCurrentUserCount() (int, error) {
 	return 0, nil
 }
 
