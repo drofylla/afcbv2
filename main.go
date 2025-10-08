@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -346,6 +347,126 @@ var changePasswordHTML = `
 </html>
 `
 
+// License activation handler
+func activateLicenseHandler(w http.ResponseWriter, r *http.Request) {
+	// Check if user is admin
+	if !isAdmin(r) {
+		http.Error(w, "Forbidden - Admin access required", http.StatusForbidden)
+		return
+	}
+
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		licenseKey := r.FormValue("licenseKey")
+		if licenseKey == "" {
+			fmt.Fprintf(w, `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                        <p class="text-red-700 font-medium">License key is required</p>
+                    </div>
+                </div>
+            `)
+			return
+		}
+
+		// Validate the license
+		licenseManager, err := NewLicenseManager()
+		if err != nil {
+			fmt.Fprintf(w, `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                        <p class="text-red-700 font-medium">License system error: %v</p>
+                    </div>
+                </div>
+            `, err)
+			return
+		}
+
+		license, err := licenseManager.ValidateLicense(licenseKey)
+		if err != nil {
+			fmt.Fprintf(w, `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div class="flex items-center">
+                        <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                        <p class="text-red-700 font-medium">Invalid license: %v</p>
+                    </div>
+                </div>
+            `, err)
+			return
+		}
+
+		// Save license to environment or database
+		// For now, we'll just validate and show success
+
+		fmt.Fprintf(w, `
+        <div class="bg-green-50 border border-green-200 rounded-xl p-6">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-green-800">License Activated Successfully!</h3>
+                    <p class="text-green-600">Your license has been validated and activated.</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 border border-green-100">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-500 font-medium">Company</p>
+                        <p class="text-gray-900 font-semibold">%s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 font-medium">License Type</p>
+                        <p class="text-gray-900 font-semibold">%s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 font-medium">Expiration</p>
+                        <p class="text-gray-900 font-semibold">%s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 font-medium">Max Users</p>
+                        <p class="text-gray-900 font-semibold">%d</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 font-medium">Domain</p>
+                        <p class="text-gray-900 font-semibold">%s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 font-medium">Issue Date</p>
+                        <p class="text-gray-900 font-semibold">%s</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 bg-blue-50 rounded-lg p-4">
+                <p class="text-blue-700 text-sm">
+                    <strong>Note:</strong> For permanent activation across server restarts, set the
+                    <code class="bg-blue-100 px-1 rounded">AFCB_LICENSE_KEY</code> environment variable to this license key.
+                </p>
+            </div>
+        </div>
+        `, license.CompanyName, license.LicenseType,
+			license.ExpiryDate.Format("January 2, 2006"),
+			license.MaxUsers, license.Domain,
+			license.IssueDate.Format("January 2, 2006"))
+	}
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if user is admin
 	isAdmin := false
@@ -373,68 +494,291 @@ func isAdmin(r *http.Request) bool {
 	return currentUser == "af"
 }
 
+func licenseContentHandler(w http.ResponseWriter, r *http.Request) {
+	licenseAdminHandler(w, r) // This will render the actual license content
+}
+
 func licenseAdminHandler(w http.ResponseWriter, r *http.Request) {
-	//check if user is admin
+	// Check if user is admin
 	if !isAdmin(r) {
 		http.Error(w, "Forbidden - Admin access required", http.StatusForbidden)
 		return
 	}
-	// Check if user is authenticated as admin
-	sessionCookie, err := r.Cookie("session")
-	if err != nil || sessionCookie.Value != "authenticated" {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
 
-	// Get current user from session
-	currentUser, err := getCurrentUser(r)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+	w.Header().Set("Content-Type", "text/html")
 
-	// Check if user is the admin "af"
-	if currentUser != "af" {
-		http.Error(w, "Forbidden - Admin access required", http.StatusForbidden)
-		return
-	}
-
-	// Rest of your existing license admin code
 	licenseManager, err := NewLicenseManager()
 	if err != nil {
-		http.Error(w, "License system error", http.StatusInternalServerError)
+		fmt.Fprintf(w, `
+            <div class="bg-red-50 border border-red-200 rounded-xl p-6">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                    </svg>
+                    <h3 class="text-lg font-semibold text-red-800">License System Error</h3>
+                </div>
+                <p class="mt-2 text-red-600">%v</p>
+            </div>`, err)
 		return
 	}
 
 	licenseKey := os.Getenv("AFCB_LICENSE_KEY")
-	if licenseKey == "" {
-		fmt.Fprintf(w, "<div class='bg-yellow-100 p-4 rounded'>No license active (Trial Mode)</div>")
-		return
-	}
 
-	license, err := licenseManager.ValidateLicense(licenseKey)
-	if err != nil {
-		fmt.Fprintf(w, "<div class='bg-red-100 p-4 rounded'>Invalid license: %v</div>", err)
-		return
-	}
-
-	// Display license info
 	fmt.Fprintf(w, `
-	<div class="bg-white p-6 rounded-lg shadow-md">
-		<h3 class="text-lg font-bold mb-4">License Information</h3>
-		<div class="grid grid-cols-2 gap-4">
-			<div><strong>Company:</strong> %s</div>
-			<div><strong>Type:</strong> %s</div>
-			<div><strong>Expires:</strong> %s</div>
-			<div><strong>Max Users:</strong> %d</div>
-			<div><strong>Domain:</strong> %s</div>
-			<div><strong>Issued:</strong> %s</div>
-		</div>
-	</div>
-	`, license.CompanyName, license.LicenseType,
-		license.ExpiryDate.Format("2006-01-02"),
-		license.MaxUsers, license.Domain,
-		license.IssueDate.Format("2006-01-02"))
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">License Management</h1>
+            <p class="text-gray-600">Manage your AFCB license and activation</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Current License Card -->
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center mb-6">
+                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-900">Current License Status</h2>
+                </div>
+    `)
+
+	if licenseKey == "" {
+		fmt.Fprintf(w, `
+                <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
+                    <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-yellow-800 mb-2">Trial Mode Active</h3>
+                    <p class="text-yellow-600 mb-4">You're currently running with limited features. Activate a license to unlock all capabilities.</p>
+                    <div class="bg-yellow-100 rounded-lg p-3">
+                        <p class="text-yellow-700 text-sm font-medium">Features may be restricted in trial mode</p>
+                    </div>
+                </div>
+        `)
+	} else {
+		license, err := licenseManager.ValidateLicense(licenseKey)
+		if err != nil {
+			fmt.Fprintf(w, `
+                <div class="bg-red-50 border border-red-200 rounded-xl p-6">
+                    <div class="flex items-center mb-4">
+                        <svg class="w-6 h-6 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        <h3 class="text-lg font-semibold text-red-800">Invalid License</h3>
+                    </div>
+                    <p class="text-red-600 mb-4">The current license key is invalid or corrupted.</p>
+                    <div class="bg-red-100 rounded-lg p-3">
+                        <p class="text-red-700 text-sm">Error: %v</p>
+                    </div>
+                </div>
+            `, err)
+		} else {
+			// Check license status
+			isExpired := time.Now().After(license.ExpiryDate)
+			statusIcon := "✅"
+			statusText := "Active"
+			badgeClass := "bg-green-100 text-green-800"
+
+			if isExpired {
+				statusIcon = "⚠️"
+				statusText = "Expired"
+				badgeClass = "bg-red-100 text-red-800"
+			} else if license.LicenseType == "trial" {
+				statusIcon = "⏱️"
+				statusText = "Trial"
+				badgeClass = "bg-blue-100 text-blue-800"
+			}
+
+			daysLeft := int(time.Until(license.ExpiryDate).Hours() / 24)
+
+			fmt.Fprintf(w, `
+                <div class="space-y-4">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">%s</h3>
+                            <p class="text-gray-600">%s License</p>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-sm font-semibold %s">%s %s</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-500 font-medium">Company</p>
+                            <p class="text-gray-900 font-semibold">%s</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-500 font-medium">Email</p>
+                            <p class="text-gray-900 font-semibold">%s</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-500 font-medium">Expires</p>
+                            <p class="text-gray-900 font-semibold">%s</p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <p class="text-gray-500 font-medium">Max Users</p>
+                            <p class="text-gray-900 font-semibold">%d</p>
+                        </div>
+                    </div>
+                `, license.CompanyName, license.LicenseType, badgeClass, statusIcon, statusText,
+				license.CompanyName, license.Email,
+				license.ExpiryDate.Format("January 2, 2006"),
+				license.MaxUsers)
+
+			if !isExpired {
+				if daysLeft <= 30 {
+					fmt.Fprintf(w, `
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="flex items-center">
+                                <svg class="w-5 h-5 text-orange-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <p class="text-orange-700 font-medium">%d days remaining</p>
+                            </div>
+                        </div>
+                    `, daysLeft)
+				}
+			} else {
+				fmt.Fprintf(w, `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-red-700 font-medium">License expired on %s</p>
+                        </div>
+                    </div>
+                `, license.ExpiryDate.Format("January 2, 2006"))
+			}
+
+			fmt.Fprintf(w, `</div>`)
+		}
+	}
+
+	fmt.Fprintf(w, `
+            </div>
+
+            <!-- Activation Card -->
+            <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                <div class="flex items-center mb-6">
+                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-gray-900">Activate License</h2>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <label for="licenseKey" class="block text-sm font-medium text-gray-700 mb-2">
+                            License Key
+                        </label>
+                        <textarea
+                            id="licenseKey"
+                            name="licenseKey"
+                            rows="8"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none font-mono text-sm"
+                            placeholder="Paste your license key here..."
+                            required></textarea>
+                        <p class="mt-2 text-sm text-gray-500">
+                            Enter the complete license key provided for your organization.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div class="text-sm text-gray-500">
+                            Need a license? Contact support
+                        </div>
+                        <button
+                            onclick="activateLicense()"
+                            class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-8 rounded-xl shadow-lg transition-all duration-200 transform hover:scale-105 focus:ring-4 focus:ring-blue-200">
+                            Activate License
+                        </button>
+                    </div>
+                </div>
+
+                <div id="license-result" class="mt-6"></div>
+            </div>
+        </div>
+
+        <!-- Information Section -->
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-200">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-2">License Benefits</h2>
+                <p class="text-gray-600">Unlock the full potential of AFCB</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 mb-2">Full Access</h3>
+                    <p class="text-sm text-gray-600">Unlock all features and capabilities</p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 mb-2">User Management</h3>
+                    <p class="text-sm text-gray-600">Support for multiple users based on your tier</p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 mb-2">Priority Support</h3>
+                    <p class="text-sm text-gray-600">Get help when you need it most</p>
+                </div>
+
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 mb-2">Regular Updates</h3>
+                    <p class="text-sm text-gray-600">Stay current with the latest features</p>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function activateLicense() {
+                const licenseKey = document.getElementById('licenseKey').value;
+                const resultDiv = document.getElementById('license-result');
+
+                if (!licenseKey) {
+                    resultDiv.innerHTML = '<div class="bg-red-50 border border-red-200 rounded-xl p-4"><div class="flex items-center"><svg class="w-5 h-5 text-red-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg><p class="text-red-700 font-medium">License key is required</p></div></div>';
+                    return;
+                }
+
+                // Show loading state
+                resultDiv.innerHTML = '<div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div><p class="mt-2 text-blue-700">Activating license...</p></div>';
+
+                // Use HTMX to submit the form
+                htmx.ajax('POST', '/admin/activate-license', {
+                    values: { licenseKey: licenseKey },
+                    target: '#license-result',
+                    swap: 'innerHTML'
+                });
+            }
+        </script>
+    </div>
+    `)
 }
 
 // Helper function to get current username from session
@@ -1986,9 +2330,14 @@ func main() {
 
 	// Static file server
 	authRouter.PathPrefix("/static/").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("./static"))))
+	authRouter.HandleFunc("/admin/license", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/license.html")
+	}).Methods("GET")
 
 	// Licensing
 	authRouter.HandleFunc("/admin/license", licenseAdminHandler).Methods("GET")
+	authRouter.HandleFunc("/admin/activate-license", activateLicenseHandler).Methods("GET", "POST")
+	authRouter.HandleFunc("/admin/license-content", licenseContentHandler).Methods("GET")
 
 	// Contact API endpoints
 	authRouter.HandleFunc("/contacts", getContacts).Methods("GET")

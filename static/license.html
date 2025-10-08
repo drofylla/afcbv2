@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>License Management - AFCB</title>
+        <link
+            rel="icon"
+            type="image/x-icon"
+            href="/static/favicon/favicon.ico"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="32x32"
+            href="/static/favicon/favicon-32x32.png"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            sizes="16x16"
+            href="/static/favicon/favicon-16x16.png"
+        />
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="/static/favicon/apple-touch-icon.png"
+        />
+        <link rel="manifest" href="/static/site.webmanifest" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    </head>
+    <body class="bg-gray-100">
+        <nav class="bg-white shadow-md">
+            <div class="container mx-auto px-4">
+                <div class="flex justify-between items-center py-4">
+                    <div class="flex items-center">
+                        <a href="/" class="text-2xl font-bold text-blue-600"
+                            >AFcb</a
+                        >
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="/" class="text-gray-600 hover:text-blue-600"
+                            >Contacts</a
+                        >
+                        <a
+                            href="/companies-page"
+                            class="text-gray-600 hover:text-blue-600"
+                            >Companies</a
+                        >
+                        <a
+                            href="/admin/license"
+                            class="text-blue-600 font-semibold"
+                            >Admin</a
+                        >
+                        <a
+                            href="/logout"
+                            class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                        >
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main
+            id="license-content"
+            hx-get="/admin/license-content"
+            hx-trigger="load"
+            hx-swap="innerHTML"
+        >
+            <div class="max-w-6xl mx-auto px-4 py-8">
+                <div class="text-center">
+                    <div
+                        class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"
+                    ></div>
+                    <p class="mt-4 text-gray-600">
+                        Loading license information...
+                    </p>
+                </div>
+            </div>
+        </main>
+    </body>
+</html>
