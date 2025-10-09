@@ -158,7 +158,7 @@ func main() {
 		fmt.Println("")
 		fmt.Println("Examples:")
 		fmt.Println("  go run license_gen.go trial \"Drofylla Corp\" \"af@drofylla.com\" 30")
-		fmt.Println("  go run license_gen.go permanent \"rofylla Corp\" \"af@drofylla.com\" \"drofylla.com\" 50 12")
+		fmt.Println("  go run license_gen.go permanent \"Drofylla Corp\" \"af@drofylla.com\" \"drofylla.com\" 50 12")
 		return
 	}
 
