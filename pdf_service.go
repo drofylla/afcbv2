@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"time"
 
@@ -77,5 +78,12 @@ func (p *PDFService) GenerateContactCardPDF(contact *Contact, companyName string
 	pdf.Cell(0, 7, contact.Phone)
 	pdf.Ln(8)
 
-	return pdf.OutputBytes(), nil
+	var buf bytes.Buffer
+	err := pdf.Output(&buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+
 }
