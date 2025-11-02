@@ -79,6 +79,14 @@ var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
         </div>
     </div>
     <div class="actions flex justify-end mt-4 space-x-2">
+   		<button class="pdf-btn p-2 rounded-lg border border-gray-300 hover:border-green-500 hover:bg-green-50 transition-colors"
+            onclick="generateContactPDF('{{.Contact.ID}}')"
+            title="Download PDF">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+        </button>
         <button class="edit-btn p-2 rounded-lg border border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-colors"
             hx-get="/modal/edit/{{.Contact.ID}}"
             hx-target="#modal-container"
@@ -2266,6 +2274,42 @@ func getDocumentLink(filename string) string {
 	return fmt.Sprintf(`<a href="/uploads/%s" target="_blank" class="text-blue-600 hover:text-blue-800">View</a>`, filename)
 }
 
+// PDF Handlers
+func generateContactPDFHandler(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	//Get contact
+	contact, err := db.GetContact(id)
+	if err != nil {
+		http.Error(w, "Contact not found", http.StatusNotFound)
+		return
+	}
+
+	//Get Company name if available
+	companyName := ""
+	if contact.CompanyID != nil {
+		company, err := db.GetCompany(*contact.CompanyID)
+		if err == nil {
+			companyName = company.Name
+		}
+	}
+
+	//GenPDF
+	pdfService := NewPDFService()
+	pdfBytes, err := pdfService.GenerateContactCardPDF(contact, companyName)
+	if err != nil {
+		http.Error(w, "Failed to generate PDF", http.StatusInternalServerError)
+		return
+	}
+
+	//Set response headers
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"contact_%s_%s_%s.pdf\"", contact.FirstName, contact.LastName, contact.ID))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
+	// Write PDF to response
+	w.Write(pdfBytes)
+}
+
 func main() {
 	// Initialize database
 	var err error
@@ -2374,6 +2418,9 @@ func main() {
 
 	// Search endpoint
 	authRouter.HandleFunc("/search", searchContacts).Methods("GET")
+
+	//PDF CC
+	authRouter.HandleFunc("/contacts/{id}/pdf", generateContactPDFHandler).Methods("GET")
 
 	// Server start
 	fmt.Println("AFcb started at http://localhost:1330")
