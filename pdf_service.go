@@ -36,47 +36,44 @@ func (p *PDFService) GenerateContactCardPDF(contact *Contact, companyName string
 	pdf.AddPage()
 
 	//Title
-	pdf.SetFont("Arial", "B", 20)
+	pdf.SetFont("Arial", "B", 13)
 	pdf.Cell(0, 15, "Contact Information")
-	pdf.Ln(20)
+	pdf.Ln(9)
 
 	//Contact details
-	//Name
-	pdf.SetXY(45, 40)
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(0, 8, fmt.Sprintf("%s, %s", contact.FirstName, contact.LastName))
-	pdf.Ln(10)
-	//IDF
-	pdf.SetX(45)
-	pdf.SetFont("Arial", "", 12)
-	pdf.Cell(0, 7, fmt.Sprintf("ID: %s", contact.ID))
-	pdf.Ln(7)
-	//Type
-	pdf.SetX(45)
-	pdf.Cell(0, 7, fmt.Sprintf("Type: %s", contact.ContactType))
+	//Name & IDF
+	// pdf.SetXY(45, 40)
+	pdf.SetFont("Arial", "B", 12)
+	pdf.Cell(0, 8, fmt.Sprintf("%s %s", contact.FirstName, contact.LastName))
+	pdf.Ln(5)
+	//ID
+	pdf.SetFont("Arial", "", 10)
+	pdf.Cell(13, 7, fmt.Sprintf("(%s)", contact.ID))
+	pdf.SetFont("Arial", "I", 10)
+	pdf.Cell(0, 7, fmt.Sprintf("-%s", contact.ContactType))
 	//Company
 	if companyName != "" {
 		pdf.SetX(45)
 		pdf.Cell(0, 7, fmt.Sprintf("Company: %s", companyName))
-		pdf.Ln(7)
+		pdf.Ln(3)
 	}
-	pdf.Ln(15)
+	pdf.Ln(6)
 	//Contact Methods
-	pdf.SetFont("Arial", "B", 14)
+	pdf.SetFont("Arial", "B", 13)
 	pdf.Cell(0, 10, "Contact Methods")
-	pdf.Ln(12)
+	pdf.Ln(6)
 	//Email
-	pdf.SetFont("Arial", "B", 11)
+	pdf.SetFont("Arial", "B", 10)
 	pdf.Cell(25, 7, "Email:")
-	pdf.SetFont("Arial", "", 11)
+	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(0, 7, contact.Email)
-	pdf.Ln(8)
+	pdf.Ln(5)
 	//Phone
-	pdf.SetFont("Arial", "B", 11)
+	pdf.SetFont("Arial", "B", 10)
 	pdf.Cell(25, 7, "Phone:")
-	pdf.SetFont("Arial", "", 11)
+	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(0, 7, contact.Phone)
-	pdf.Ln(8)
+	pdf.Ln(5)
 
 	var buf bytes.Buffer
 	err := pdf.Output(&buf)
