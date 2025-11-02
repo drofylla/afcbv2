@@ -79,14 +79,12 @@ var conCard = template.Must(template.New("card").Funcs(template.FuncMap{
         </div>
     </div>
     <div class="actions flex justify-end mt-4 space-x-2">
-   		<button class="pdf-btn p-2 rounded-lg border border-gray-300 hover:border-green-500 hover:bg-green-50 transition-colors"
-            onclick="generateContactPDF('{{.Contact.ID}}')"
-            title="Download PDF">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+  		<a href="/contacts/{{.Contact.ID}}/pdf"
+       		download class="pdf-btn p-2 rounded-lg border border-gray-300 hover:border-green-500 hover:bg-green-50 transition-colors inline-flex items-center justify-center" title="Download">
+         	<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
             </svg>
-        </button>
+        </a>
         <button class="edit-btn p-2 rounded-lg border border-gray-300 hover:border-blue-500 hover:bg-blue-50 transition-colors"
             hx-get="/modal/edit/{{.Contact.ID}}"
             hx-target="#modal-container"
