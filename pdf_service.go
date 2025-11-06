@@ -44,13 +44,19 @@ func (p *PDFService) GenerateContactCardPDF(contact *Contact, companyName string
 	//Name & IDF
 	// pdf.SetXY(45, 40)
 	pdf.SetFont("Arial", "B", 12)
-	pdf.Cell(0, 8, fmt.Sprintf("%s %s", contact.FirstName, contact.LastName))
-	pdf.Ln(5)
+	name := fmt.Sprintf("%s %s", contact.FirstName, contact.LastName)
+	nameWidth := pdf.GetStringWidth(name) + 1
+	pdf.Cell(nameWidth, 8, name)
 	//ID
 	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(13, 7, fmt.Sprintf("(%s)", contact.ID))
+	idText := fmt.Sprintf("(%s)", contact.ID)
+	idWidth := pdf.GetStringWidth(idText) + 1
+	pdf.Cell(idWidth, 8, idText)
+	//Type
 	pdf.SetFont("Arial", "I", 10)
-	pdf.Cell(0, 7, fmt.Sprintf("-%s", contact.ContactType))
+	contactTypeText := fmt.Sprintf("- %s", contact.ContactType)
+	pdf.Cell(0, 8, contactTypeText)
+	pdf.Ln(6)
 	//Company
 	if companyName != "" {
 		pdf.SetX(45)
