@@ -30,6 +30,13 @@
                             class="text-blue-600 font-semibold"
                             >Companies</a
                         >
+                        {{if .IsAdmin}}
+                        <a
+                            href="/admin/license"
+                            class="text-gray-600 hover:text-blue-600"
+                            >Admin</a
+                        >
+                        {{end}}
                         <div class="relative">
                             <input
                                 type="search"

@@ -2174,7 +2174,33 @@ func authMiddleware(next http.Handler) http.Handler {
 
 // server companies page
 func companiesPageHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "static/companies.html")
+	// Check if user is admin
+	isAdmin := false
+	currentUser, err := getCurrentUser(r)
+	if err == nil && currentUser == "af" {
+		isAdmin = true
+	}
+
+	data := struct {
+		IsAdmin bool
+	}{
+		IsAdmin: isAdmin,
+	}
+
+	// Try parsing from the current directory instead
+	tmpl, err := template.ParseFiles("./templates/companies.html")
+	if err != nil {
+		fmt.Printf("Template error: %v\n", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	if err := tmpl.Execute(w, data); err != nil {
+		fmt.Printf("Execute error: %v\n", err)
+		http.Error(w, "Execute error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // get companies for table view
@@ -2395,6 +2421,26 @@ func main() {
 	// Companies page routes
 	authRouter.HandleFunc("/companies-page", companiesPageHandler).Methods("GET")
 	authRouter.HandleFunc("/companies-table", getCompaniesTable).Methods("GET")
+
+	// Add this in your main() function
+	authRouter.HandleFunc("/test-template", func(w http.ResponseWriter, r *http.Request) {
+		data := struct {
+			IsAdmin bool
+		}{
+			IsAdmin: true,
+		}
+
+		tmpl := template.Must(template.New("test").Parse(`
+        <html>
+            <body>
+                <h1>Test Template</h1>
+                <p>IsAdmin: {{.IsAdmin}}</p>
+                {{if .IsAdmin}}<p>ADMIN IS WORKING!</p>{{end}}
+            </body>
+        </html>
+    `))
+		tmpl.Execute(w, data)
+	})
 
 	// Company search endpoint
 	authRouter.HandleFunc("/search-companies", searchCompanies).Methods("GET")
